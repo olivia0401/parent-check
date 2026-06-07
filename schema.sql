@@ -7,14 +7,18 @@
 -- finished sentences. The words are looked up in translations.py at display time,
 -- so a saved check can be viewed in either Chinese or English.
 
+-- Data minimisation: we deliberately do NOT store the original text the user
+-- pasted (it may contain personal data). Only the verdict and evidence are kept.
 CREATE TABLE IF NOT EXISTS checks (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     created_at  TEXT    NOT NULL,   -- when the check was run (ISO string)
     source      TEXT    NOT NULL,   -- source code: health_article / supplement_ad / suspicious_msg / other
-    content     TEXT    NOT NULL,   -- the text the user pasted or typed
     risk        TEXT    NOT NULL,   -- risk code: ok / caution / danger
     category    TEXT    NOT NULL,   -- advice category: none / scam / health / mixed
     reasons     TEXT    NOT NULL,   -- matched keywords (evidence), one per line
     helpful     INTEGER,            -- feedback: 1 = helpful, 0 = not, NULL = no answer yet
     user_token  TEXT                -- anonymous per-browser id, so history stays private
 );
+
+-- History is always queried by user_token, so index it.
+CREATE INDEX IF NOT EXISTS idx_checks_user ON checks(user_token);

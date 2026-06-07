@@ -200,6 +200,29 @@ python app.py
 Then open the address Flask prints (usually `http://127.0.0.1:5000`) in a
 browser. The page is mobile-friendly, so it also works opened on a phone.
 
+#### Security and privacy
+
+Because users paste real messages (which may contain personal data), I treated
+this as a security tool, not just a web form:
+
+- **No SQL injection** — every query is parameterised; SQL is never built by
+  string formatting.
+- **No XSS** — all user content is rendered through Jinja's autoescaping; nothing
+  uses `| safe`.
+- **Data minimisation** — the original text a user pastes is **never stored**.
+  Only the verdict, category, matched signals and timestamp are saved, keyed to
+  an anonymous per-browser id, so each visitor sees only their own history.
+- **No third-party calls** — the check runs locally; the optional model is off by
+  default, so messages never leave the server.
+- **Session cookies** are `HttpOnly` + `SameSite=Lax` (which also mitigates CSRF
+  on the POST forms) and `Secure` in production.
+- **Config** — `debug` is off in production (gunicorn); the secret key comes from
+  an environment variable; submitted text is length-capped.
+
+Known limits I would address for a larger deployment: per-request rate limiting,
+an explicit CSRF token (currently relying on `SameSite=Lax`), and automated
+dependency scanning.
+
 #### Limitations and future work
 
 This is a prototype. Keyword rules cannot catch every evolving scam, and the

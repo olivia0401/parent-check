@@ -30,7 +30,19 @@ app = Flask(__name__)
 # the fallback is only for local development.
 app.secret_key = os.environ.get("SECRET_KEY", "parent-check-dev-key")
 
+# Session-cookie hardening. SameSite=Lax also mitigates CSRF on our POST forms
+# (the cookie isn't sent on cross-site POSTs). Secure is enabled in production
+# (HTTPS); local dev over http has no SECRET_KEY set, so it stays off there.
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=bool(os.environ.get("SECRET_KEY")),
+)
+
 DB_PATH = os.path.join(os.path.dirname(__file__), "parent_check.db")
+
+# Cap on submitted text — prevents oversized requests and keeps the DB tidy.
+MAX_CONTENT = 5000
 
 # Content-source codes shown on the form (labels come from translations.py).
 SOURCE_CODES = ["health_article", "supplement_ad", "suspicious_msg", "other"]
@@ -103,7 +115,7 @@ def index():
 @app.route("/check", methods=["POST"])
 def check():
     """Analyze submitted text, store the result, and show the result page."""
-    content = (request.form.get("content") or "").strip()
+    content = (request.form.get("content") or "").strip()[:MAX_CONTENT]
     source = request.form.get("source") or "other"
 
     if not content:
@@ -112,15 +124,16 @@ def check():
     result = analyze_content(content, source)
 
     # Save this check to the database (Week 7: INSERT with parameters).
+    # Data minimisation: we store the verdict, category, matched signals and time
+    # — but NOT the original text the user pasted, which may contain personal data.
     conn = get_db()
     cur = conn.execute(
         """INSERT INTO checks
-           (created_at, source, content, risk, category, reasons, helpful, user_token)
-           VALUES (?, ?, ?, ?, ?, ?, NULL, ?)""",
+           (created_at, source, risk, category, reasons, helpful, user_token)
+           VALUES (?, ?, ?, ?, ?, NULL, ?)""",
         (
             datetime.now().strftime("%Y-%m-%d %H:%M"),
             source,
-            content,
             result["risk"],
             result["category"],
             "\n".join(result["reasons"]),
