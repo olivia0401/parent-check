@@ -22,7 +22,7 @@ TRANSLATIONS = {
         "footer": "这个应用不能代替医生、警察、银行或家人，只帮你先停一下、再确认。",
         # home / index
         "home_title": "拿不准，先求证",
-        "home_lead": "看到养生文章、保健品广告、可疑短信或奇怪链接，先别急。把内容写下来，我帮你看看。",
+        "home_lead": "看到养生文章、保健品广告、可疑短信或奇怪链接，先别急。把文字内容复制粘贴到下面的框里，我帮你看看。",
         "label_content": "把看到的内容写在这里：",
         "placeholder": "例如：您的医保账户异常，请点击链接完成认证，需要输入身份证和验证码……",
         "label_source": "内容来源：",
@@ -163,7 +163,7 @@ TRANSLATIONS = {
         "footer": "This app can't replace a doctor, the police, your bank or your family — it just helps you pause and check.",
         # home / index
         "home_title": "Not sure? Check first",
-        "home_lead": "Seen a health article, a supplement ad, a suspicious text or a strange link? Don't rush. Write it down here and I'll take a look.",
+        "home_lead": "Seen a health article, a supplement ad, a suspicious text or a strange link? Don't rush. Copy and paste the text into the box below and I'll take a look.",
         "label_content": "Paste or describe what you saw:",
         "placeholder": "e.g. Your account is suspended. Click this link to verify and enter your one-time code…",
         "label_source": "What kind of thing is it?",
