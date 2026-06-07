@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<!-- 海报：用手机或电脑打开本文件，截图后即可发到微信群。
+     QR 用的是公开二维码服务，指向你的网址；想换可替换 img 的 src。 -->
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>爸妈求证 · 海报</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+        background: #eef2f6;
+        display: flex;
+        justify-content: center;
+        padding: 24px 12px;
+      }
+      .poster {
+        width: 400px;
+        background: linear-gradient(180deg, #ffffff 0%, #f3f7fb 100%);
+        border-radius: 24px;
+        box-shadow: 0 12px 40px rgba(20, 40, 70, 0.15);
+        padding: 32px 28px 28px;
+        color: #1f2933;
+      }
+      .brand { font-size: 30px; font-weight: 800; letter-spacing: -0.01em; }
+      .brand .shield { margin-right: 6px; }
+      .tag { font-size: 20px; color: #1f6feb; font-weight: 700; margin-top: 4px; }
+      .intro { font-size: 17px; color: #52606d; line-height: 1.7; margin: 14px 0 20px; }
+      .steps { list-style: none; }
+      .steps li {
+        display: flex; align-items: flex-start; gap: 12px;
+        font-size: 17px; margin: 12px 0;
+      }
+      .num {
+        flex: none; width: 30px; height: 30px; border-radius: 50%;
+        background: #1f6feb; color: #fff; font-weight: 700;
+        display: flex; align-items: center; justify-content: center; font-size: 16px;
+      }
+      .verdicts { display: flex; gap: 8px; margin: 18px 0; }
+      .v { flex: 1; text-align: center; color: #fff; font-size: 14px;
+           font-weight: 700; padding: 8px 4px; border-radius: 10px; }
+      .v.ok { background: #607d8b; }
+      .v.caution { background: #d4880f; }
+      .v.danger { background: #b5301f; }
+      .privacy {
+        background: #fff5f4; border: 1px solid #f3c9c4; border-left: 5px solid #d64a3b;
+        border-radius: 12px; padding: 12px 14px; font-size: 14px; color: #8a2a1f;
+        line-height: 1.6; margin: 6px 0 18px;
+      }
+      .cta { display: flex; align-items: center; gap: 16px; }
+      .cta img { width: 110px; height: 110px; border-radius: 12px; background: #fff; }
+      .cta .url { font-size: 15px; color: #1f2933; line-height: 1.6; }
+      .cta .url b { color: #1f6feb; word-break: break-all; }
+      .foot { font-size: 13px; color: #8595a4; text-align: center; margin-top: 18px; }
+    </style>
+  </head>
+  <body>
+    <div class="poster">
+      <div class="brand"><span class="shield">🛡️</span>爸妈求证</div>
+      <div class="tag">拿不准，先求证</div>
+
+      <p class="intro">
+        看到养生文章、保健品广告、可疑短信或奇怪链接，先别急。<br />
+        把内容贴进去，它帮你看看，还能<b>生成一段发给孩子确认的话</b>。
+      </p>
+
+      <ol class="steps">
+        <li><span class="num">1</span><span>把看到的内容贴进去</span></li>
+        <li><span class="num">2</span><span>看结果和「现在不要做什么」</span></li>
+        <li><span class="num">3</span><span>一键转发给家人；危险时可拨银行专线 159</span></li>
+      </ol>
+
+      <div class="verdicts">
+        <div class="v ok">暂未发现风险</div>
+        <div class="v caution">要小心</div>
+        <div class="v danger">很可能有问题</div>
+      </div>
+
+      <div class="privacy">
+        🔒 免注册、不要姓名。<b>请勿输入银行卡号、验证码、密码。</b>记录只存在你自己手机里。
+      </div>
+
+      <div class="cta">
+        <img
+          alt="二维码"
+          src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=https://parent-check.onrender.com"
+        />
+        <div class="url">
+          扫码或打开网址：<br /><b>parent-check.onrender.com</b><br />
+          <span style="color: #8595a4; font-size: 13px">首次打开约等 30 秒</span>
+        </div>
+      </div>
+
+      <div class="foot">免费 · 帮长辈识别养生谣言、保健品套路和可疑短信</div>
+    </div>
+  </body>
+</html>

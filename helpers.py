@@ -11,7 +11,10 @@
 # we can always tell the user exactly WHY we flagged something. That is a design
 # choice, documented in the README.
 
+import blocklist
+import semantic
 from keywords import CRITICAL, SCAM, HEALTH, BENIGN
+from normalize import compact
 
 # Risk levels (codes). We never have a "safe" level — only degrees of caution.
 RISK_OK = "ok"
@@ -19,10 +22,13 @@ RISK_CAUTION = "caution"
 RISK_DANGER = "danger"
 
 
-def _find(terms, text):
-    """Return the list of terms from `terms` that appear in `text` (case-insensitive)."""
-    low = text.lower()
-    return [t for t in terms if t.lower() in low]
+def _find(terms, compact_text):
+    """Return the terms whose compact form appears in the compact text.
+
+    Using the normalized (compact) form lets us catch spaced-out or
+    full-width evasions like "验 证 码" or "ＶＥＲＩＦＹ".
+    """
+    return [t for t in terms if compact(t) in compact_text]
 
 
 def analyze_content(content, source=""):
@@ -39,11 +45,19 @@ def analyze_content(content, source=""):
         category -> "none" | "scam" | "health" | "mixed"  (chooses the advice set)
         reasons  -> the matched keywords (evidence, shown as-is)
     """
-    hit_critical = _find(CRITICAL, content)
-    hit_scam = _find(SCAM, content)
-    hit_health = _find(HEALTH, content)
+    ctext = compact(content)
+    hit_critical = _find(CRITICAL, ctext)
+    hit_scam = _find(SCAM, ctext)
+    hit_health = _find(HEALTH, ctext)
 
-    danger = 3 * len(hit_critical) + 2 * len(hit_scam)
+    # Deterministic threat-intelligence floor: suspicious links / numbers.
+    bl_danger, bl_reasons = blocklist.check(content)
+
+    # Semantic escalation layer: catches keyword-free scams (e.g. impersonation).
+    # It can only ADD danger, never reduce it.
+    sem_danger, sem_reasons = semantic.escalate(content)
+
+    danger = 3 * len(hit_critical) + 2 * len(hit_scam) + bl_danger + sem_danger
     caution = len(hit_health)
 
     # Use the context the user gave us: a "suspicious message" nudges danger up,
@@ -61,7 +75,7 @@ def analyze_content(content, source=""):
         risk = RISK_OK
 
     # Category decides which plain-language advice set to show.
-    is_scam = bool(hit_critical or hit_scam)
+    is_scam = bool(hit_critical or hit_scam or bl_reasons or sem_reasons)
     is_health = bool(hit_health)
     if risk == RISK_OK:
         category = "none"
@@ -74,7 +88,10 @@ def analyze_content(content, source=""):
     else:
         category = "mixed"
 
-    reasons = hit_critical + hit_scam + hit_health
+    # Combine evidence from all layers, de-duplicated, order preserved.
+    reasons = list(dict.fromkeys(
+        hit_critical + hit_scam + hit_health + bl_reasons + sem_reasons
+    ))
     return {"risk": risk, "category": category, "reasons": reasons}
 
 
@@ -102,7 +119,14 @@ def build_view(t, risk, category, reasons, source):
     Used by both the result page and the history-detail page, so a saved check
     can be rendered in whichever language the user is currently viewing.
     """
+    # Translate any non-evidence reason codes (e.g. the model sentinel).
+    display = [t["reason_model"] if r == "model" else r for r in reasons]
     summary = t["summary"][category]
     advice = t["advice"][category]
-    child_message = generate_child_message(t, risk, category, reasons, source)
-    return {"summary": summary, "advice": advice, "child_message": child_message}
+    child_message = generate_child_message(t, risk, category, display, source)
+    return {
+        "summary": summary,
+        "advice": advice,
+        "child_message": child_message,
+        "reasons": display,
+    }

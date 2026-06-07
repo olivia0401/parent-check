@@ -32,6 +32,13 @@ function whatsappShare() {
   window.open("https://wa.me/?text=" + text, "_blank");
 }
 
+// WeChat has no web API to send a message to a contact, so the realistic flow is:
+// copy the text, open WeChat, then paste it to the family member.
+function openWeChat() {
+  copyMessage();
+  window.location.href = "weixin://";
+}
+
 // --- family phone number, stored only in this browser (no server) ---
 
 function saveFamily() {
@@ -69,4 +76,50 @@ function renderFamily() {
   }
 }
 
-document.addEventListener("DOMContentLoaded", renderFamily);
+// --- family WeChat ID, stored only in this browser (no server) ---
+// WeChat IDs are not dialable, so this is a reminder you can copy into WeChat.
+
+function saveWeixin() {
+  var inp = document.getElementById("weixin-id");
+  if (!inp) return;
+  var v = inp.value.trim();
+  if (v) {
+    localStorage.setItem("familyWeixin", v);
+    renderWeixin();
+  }
+}
+
+function changeWeixin() {
+  localStorage.removeItem("familyWeixin");
+  renderWeixin();
+}
+
+function copyWeixin() {
+  var v = localStorage.getItem("familyWeixin");
+  if (!v) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(v);
+  }
+  alert("微信号已复制：" + v + "，可在微信里搜索粘贴。");
+}
+
+function renderWeixin() {
+  var v = localStorage.getItem("familyWeixin");
+  var setBox = document.getElementById("weixin-set");
+  var saveBox = document.getElementById("weixin-save");
+  if (!setBox || !saveBox) return; // not on a page with the WeChat section
+  if (v) {
+    saveBox.style.display = "none";
+    setBox.style.display = "flex";
+    var b = setBox.querySelector(".wxid");
+    if (b) b.textContent = v;
+  } else {
+    saveBox.style.display = "block";
+    setBox.style.display = "none";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+  renderFamily();
+  renderWeixin();
+});

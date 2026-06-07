@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+
+{% block main %}
+  <h1>{{ t.privacy_title }}</h1>
+  <p class="lead">{{ t.privacy_lead }}</p>
+
+  <section>
+    <h2>{{ t.privacy_collect_title }}</h2>
+    <p class="quote">{{ t.privacy_collect_text }}</p>
+  </section>
+
+  <section>
+    <h2>{{ t.privacy_local_title }}</h2>
+    <p class="quote">{{ t.privacy_local_text }}</p>
+  </section>
+
+  <section>
+    <h2>{{ t.privacy_not_title }}</h2>
+    <p class="quote">{{ t.privacy_not_text }}</p>
+  </section>
+
+  <section>
+    <h2>{{ t.privacy_private_title }}</h2>
+    <p class="quote">{{ t.privacy_private_text }}</p>
+  </section>
+
+  <section>
+    <h2>{{ t.privacy_rights_title }}</h2>
+    <p class="quote">{{ region.privacy[lang] }} {{ region.rights[lang] }}</p>
+  </section>
+
+  <section>
+    <h2>{{ t.privacy_contact_title }}</h2>
+    <p class="quote">{{ t.privacy_contact_text }}</p>
+  </section>
+{% endblock %}

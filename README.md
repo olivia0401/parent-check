@@ -1,10 +1,10 @@
-# 爸妈求证 (Parent Check)
+# 爸妈求证 (ScamShield for Parents)
 
 #### Video Demo: <在此粘贴你的 YouTube unlisted 链接>
 
 #### Description
 
-爸妈求证 (Parent Check) is a small web application that helps elderly people — in
+爸妈求证 (ScamShield for Parents) is a small web application that helps elderly people — in
 my case, Chinese-speaking seniors living in the UK — pause and get a second
 opinion when they see something they are not sure about: a health/supplement
 article, an advertisement promising miracle cures, a suspicious text message, or
@@ -76,6 +76,23 @@ definitely safe.
   by short codes. This is what lets the whole app, including past records, be
   shown in either language.
 
+- **normalize.py** — folds text to a compact form before matching (full-width to
+  half-width, lower-case, strip spacing/punctuation) so simple evasions like
+  "验 证 码" are still caught.
+
+- **blocklist.py** — deterministic checks on the links and phone numbers in a
+  message (raw-IP links, URL shorteners, scam-prone TLDs, punycode, a sample
+  domain blocklist, UK premium-rate numbers). High precision, fully explainable.
+
+- **semantic.py** — the escalation layer. It detects keyword-free scams by the
+  co-occurrence of structural signals (e.g. impersonation = new-number + money
+  request). It can only *raise* the risk, never lower it, and has a slot for a
+  learned model that needs no API key to run.
+
+- **evaluate.py** and **tests/dataset.py** — a labelled evaluation set and a
+  script that measures accuracy, separating *missed warnings* (dangerous) from
+  *false alarms* (merely annoying).
+
 - **schema.sql** — the single `checks` table that stores every analysis. Risk,
   category and source are stored as language-neutral *codes*, not finished
   sentences, so a saved check can later be viewed in either language.
@@ -124,6 +141,49 @@ safety can be dangerous. Even the lowest-risk result is worded as "no obvious
 risk found — still check with family", shown in a neutral colour rather than
 green, and still encourages the user to confirm with family or an official source.
 
+#### Accuracy, and how I measured it
+
+Rather than guessing, I measure the engine against a hand-labelled set of
+real-style messages, tagged by category (`python evaluate.py`). On the current
+61-case set it scores **97% exact accuracy**, and — the metric that matters most —
+**100% scam recall with zero missed scams** across UK smishing, fake-authority,
+investment/job, and impersonation types, in both Chinese and English. The two
+failure types are reported separately because they are not equally bad: a *missed
+scam* (a scam shown as "ok") is dangerous, while a *false alarm* (a benign message
+flagged) is only annoying — so the engine is tuned to lean toward warning.
+
+Measuring it directly drove the design. An early version missed a keyword-free
+impersonation ("Mum, I changed my number, send me some money"); that motivated the
+semantic layer (`semantic.py`), which looks at the *co-occurrence* of signals
+(number-change + money request) rather than single words, and now catches it. The
+only remaining failures are two benign messages that happen to contain a trigger
+word ("never tell anyone your verification code"; "bring your ID card to the free
+health check") — the acceptable side of leaning toward warning. Removing those
+without weakening real detection is exactly the job of a learned model, slotted in
+behind the same escalate-only contract (see Future architecture).
+
+Before matching, input is normalised (`normalize.py`) and links/numbers are
+checked deterministically against threat heuristics (`blocklist.py`), which is
+what catches spaced-out evasions and scam URLs.
+
+#### Trying a learned model (and choosing to gate it off)
+
+To go beyond rules I trained a small scam classifier — character n-gram TF-IDF
+plus logistic regression, which works for Chinese and English without word
+segmentation (`train_model.py`, `model/`). It plugs into the same escalate-only
+slot in `semantic.py`, can only raise risk, and fails safe.
+
+Measured honestly, it does not yet earn its place. On a separate 64-example
+training corpus it reaches only ~0.61 cross-validated F1, and its scam-vs-benign
+probabilities overlap (~0.55 vs ~0.45), so at any threshold safe enough to avoid
+new false alarms it never fires — turning it on changes none of the held-out
+numbers. So I keep it **off by default**. The honest lesson is that with this
+little labelled data the bottleneck is *data, not architecture*; and because the
+model lives behind a deterministic floor and can only raise risk, it can be
+switched on safely once there is enough data to make it reliable. The web app
+needs no ML dependencies to run (`requirements-ml.txt`, `SEMANTIC_MODEL=1` enable
+the optional model).
+
 #### The feedback loop
 
 Each saved check has a "was this helpful?" question. I added the `helpful` column
@@ -153,3 +213,36 @@ continued developing it, I would likely shift the product toward adult children
 as the primary users, because they are often the people who actually help their
 parents verify suspicious messages. That, rather than more keywords, is the real
 next step.
+
+#### Future architecture
+
+The current version uses deterministic, explainable rules rather than a large
+language model. This was an intentional design choice for the CS50 prototype: in
+high-risk situations such as scams, health claims, money transfers, and
+verification codes, the system should be conservative, predictable, and easy to
+explain.
+
+A real product would not necessarily *need* an LLM, but it would need a semantic
+understanding layer — and an LLM is one way to implement that, not the only one.
+Rather than replacing the rule-based system, I would use a layered architecture:
+
+1. **Deterministic rules and threat intelligence as the safety floor.** Known
+   high-risk signals such as verification codes, payment requests, suspicious
+   links, health miracle claims, and known scam URLs would always trigger a
+   higher-risk result.
+2. **A semantic understanding layer as an escalation system.** A first version
+   of this already exists in `semantic.py`: a heuristic that flags keyword-free
+   scams (such as impersonation) by the co-occurrence of structural signals. A
+   smaller classifier or an LLM would slot into the same place to improve recall
+   on novel scams and emotional manipulation. Either way, this layer may only
+   *raise* the risk level, never lower it.
+3. **Human-in-the-loop confirmation.** The product would keep encouraging users
+   to check with family or official sources, especially where money, medicine,
+   personal data, or verification codes are involved.
+4. **Privacy and abuse protection.** A real product would handle sensitive
+   messages carefully, avoid sending unnecessary personal data to third-party
+   APIs, and defend against prompt injection — because scam messages are
+   themselves adversarial inputs.
+
+This keeps the product aligned with its core principle: never give users a false
+sense of safety.

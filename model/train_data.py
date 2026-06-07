@@ -1,0 +1,78 @@
+# model/train_data.py
+# Training corpus for the scam classifier — DELIBERATELY SEPARATE from the
+# evaluation set in tests/dataset.py, so we never train and test on the same
+# texts (no data leakage). Label: 1 = scam, 0 = not a scam (health + benign).
+#
+# These are different phrasings from the eval set, on purpose.
+
+TRAIN = [
+    # ---------------- scams (label 1) ----------------
+    ("您的包裹因地址不详无法派送，请点击链接更新信息并支付小额费用。", 1),
+    ("尊敬的客户，您的话费积分即将清零，点击链接兑换现金红包。", 1),
+    ("银行通知：您的账户在异地登录，请立即点击链接验证身份。", 1),
+    ("您有一笔退税待领取，请提供银行卡号和验证码以便到账。", 1),
+    ("我是社保局工作人员，您的医保卡涉嫌违规，需配合冻结资金调查。", 1),
+    ("公安机关通知：您涉嫌一起刑事案件，请添加办案人员微信配合。", 1),
+    ("加我微信带你做投资，老师一对一指导，包赚不亏当天提现。", 1),
+    ("招聘线上兼职打字员，日结工资，先交押金保证不跑单。", 1),
+    ("您的孩子在学校受伤住院，急需手术费，请马上转账到这个账户。", 1),
+    ("亲，您拍下的订单系统故障要走理赔流程，加客服微信办理退款。", 1),
+    ("恭喜您被抽中一等奖，先支付邮费即可领取苹果手机一部。", 1),
+    ("您的快递滞留海关，需缴纳关税，扫码支付后即可放行。", 1),
+    ("您的水电费逾期即将停供，请点击链接尽快缴费避免影响。", 1),
+    ("你好妈，我换了个新手机号，旧号停用了，记一下。我急用钱你先打给我。", 1),
+    ("您的贷款已批，放款前需先缴纳工本费到指定账户解冻额度。", 1),
+    ("Your parcel could not be delivered. Update your address and pay a fee: http://parcel-update.top", 1),
+    ("HMRC notice: you have an outstanding tax bill. Pay immediately at http://gov-tax-pay.icu to avoid a fine.", 1),
+    ("Your Netflix payment failed. Update your card details here: http://netflix-billing.click", 1),
+    ("We've detected suspicious login on your account. Verify now: http://secure-login-check.xyz", 1),
+    ("You have a refund of £150 waiting. Confirm your bank details to receive it.", 1),
+    ("This is the bank fraud team. Move your money to a safe account to protect it.", 1),
+    ("Invest £200 in crypto today and earn guaranteed daily profit, withdraw anytime.", 1),
+    ("Work from home, earn £300 a day liking videos, pay a small deposit to start.", 1),
+    ("Hi Dad, my phone is broken, texting from a mate's number. Please send money urgently.", 1),
+    ("Your parcel from DPD needs a £1.45 redelivery fee, pay at www.dpd-reschedule.top", 1),
+    ("Call this number now to claim your compensation before it expires: 0906 123 4567.", 1),
+    ("Install this remote support tool and let our agent access your computer to fix it.", 1),
+    ("您的微信支付被限制，请点击链接进行实名认证解除限制。", 1),
+    ("您参与的购物返现活动需先垫付货款，完成任务后连本带利返还。", 1),
+    ("法院传票通知，您有未结案件，请联系下方电话配合处理保证金。", 1),
+    ("您的银行卡已被锁定，回复短信并提供卡号有效期解锁。", 1),
+    ("赶紧的，我是你侄子，手机丢了用同学的号，先借我两千救急。", 1),
+
+    # ---------------- health rumours (label 0) ----------------
+    ("这款酵素能排毒养颜，坚持喝一个月清肠又减肥。", 0),
+    ("纯中药调理，三个疗程根治多年老胃病，无任何副作用。", 0),
+    ("喝了这个能软化血管降三高，是药三分毒不如食疗。", 0),
+    ("祖传膏药贴一贴，颈椎腰椎疼痛立刻见效。", 0),
+    ("这款保健品提高免疫力，老年人吃了少生病更长寿。", 0),
+    ("量子能量项链改善睡眠，调节身体磁场。", 0),
+    ("This herbal tea melts fat overnight and cleanses your liver.", 0),
+    ("Take this natural pill to reverse diabetes without medicine.", 0),
+    ("Doctors hate this trick: one supplement to lower blood pressure fast.", 0),
+    ("This miracle cream removes wrinkles in three days, dermatologist free.", 0),
+    ("超级食物粉末抗氧化抗衰老，每天一勺年轻十岁。", 0),
+    ("艾灸通经络驱寒湿，包治妇科百病。", 0),
+    ("This detox juice cleanse cures almost any illness naturally.", 0),
+    ("吃这个偏方比化疗管用，很多癌症病人都好了。", 0),
+    ("天然蜂胶增强抵抗力，预防一切慢性病。", 0),
+    ("这款仪器理疗能根治糖尿病，停掉胰岛素也没事。", 0),
+
+    # ---------------- benign (label 0) ----------------
+    ("妈，晚上想吃红烧肉吗？我下班买点排骨回来。", 0),
+    ("周末社区有合唱团活动，要不要一起去？", 0),
+    ("孙子这次月考进步很大，老师还表扬他了。", 0),
+    ("天气转凉了，记得加件外套别着凉。", 0),
+    ("Can you send me grandma's soup recipe? I want to try it.", 0),
+    ("The bus to the market changed its timetable from Monday.", 0),
+    ("我新种的兰花开了，明天拍给你看。", 0),
+    ("Let's book the GP appointment for your check-up next week.", 0),
+    ("老张约我们明早去河边钓鱼，你去吗？", 0),
+    ("The grandchildren are visiting on Sunday, so exciting.", 0),
+    ("帮我看看这个手机相册怎么导出照片。", 0),
+    ("今天广场舞换了新曲子，挺好学的。", 0),
+    ("Reminder: library books are due back this Friday.", 0),
+    ("买了点新鲜草莓，给你留一盒。", 0),
+    ("我们家庭群里商量一下春节怎么聚。", 0),
+    ("The weather is lovely today, perfect for a walk in the park.", 0),
+]

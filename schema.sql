@@ -15,5 +15,6 @@ CREATE TABLE IF NOT EXISTS checks (
     risk        TEXT    NOT NULL,   -- risk code: ok / caution / danger
     category    TEXT    NOT NULL,   -- advice category: none / scam / health / mixed
     reasons     TEXT    NOT NULL,   -- matched keywords (evidence), one per line
-    helpful     INTEGER             -- feedback: 1 = helpful, 0 = not, NULL = no answer yet
+    helpful     INTEGER,            -- feedback: 1 = helpful, 0 = not, NULL = no answer yet
+    user_token  TEXT                -- anonymous per-browser id, so history stays private
 );

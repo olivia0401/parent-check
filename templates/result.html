@@ -30,7 +30,7 @@
     </section>
   {% endif %}
 
-  {{ share_and_call(t, risk, category, child_message) }}
+  {{ share_and_call(t, lang, region, risk, category, child_message) }}
 
   <div class="actions">
     <a class="link-button" href="{{ url_for('detail', check_id=check_id) }}">{{ t.save_view }}</a>

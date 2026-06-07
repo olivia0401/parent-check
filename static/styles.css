@@ -409,9 +409,19 @@ select {
 
 /* ----------------------------------------------------------- call / share */
 .family-set {
-  flex: 1;
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 12px;
+}
+
+.weixin-shown {
+  font-size: 19px;
+  color: var(--ink);
+}
+
+.weixin-shown .wxid {
+  color: var(--primary);
 }
 
 .family-save label {

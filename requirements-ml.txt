@@ -1,0 +1,4 @@
+# Optional ML extras — only needed to train/run the learned semantic model.
+# The web app itself runs without these (see semantic.py, which fails safe).
+scikit-learn
+joblib

@@ -15,12 +15,14 @@
 #   GET  /about         scope / disclaimer page
 
 import os
+import secrets
 import sqlite3
 from datetime import datetime
 
 from flask import Flask, redirect, render_template, request, session, url_for
 
 from helpers import analyze_content, build_view
+from regions import current_region, current_region_code
 from translations import TRANSLATIONS
 
 app = Flask(__name__)
@@ -63,6 +65,15 @@ def current_lang():
     return session.get("lang", "zh")
 
 
+def current_uid():
+    """An anonymous per-browser id (kept in the signed session cookie) so each
+    visitor only ever sees their own history. No name or account is involved."""
+    if "uid" not in session:
+        session.permanent = True
+        session["uid"] = secrets.token_hex(16)
+    return session["uid"]
+
+
 @app.before_request
 def remember_language():
     """If the request asks to switch language (?lang=...), store the choice."""
@@ -73,9 +84,14 @@ def remember_language():
 
 @app.context_processor
 def inject_translations():
-    """Make the translation table `t` and `lang` available in every template."""
+    """Make `t`, `lang` and the region config available in every template."""
     lang = current_lang()
-    return {"t": TRANSLATIONS[lang], "lang": lang}
+    return {
+        "t": TRANSLATIONS[lang],
+        "lang": lang,
+        "region": current_region(),
+        "region_code": current_region_code(),
+    }
 
 
 @app.route("/")
@@ -99,8 +115,8 @@ def check():
     conn = get_db()
     cur = conn.execute(
         """INSERT INTO checks
-           (created_at, source, content, risk, category, reasons, helpful)
-           VALUES (?, ?, ?, ?, ?, ?, NULL)""",
+           (created_at, source, content, risk, category, reasons, helpful, user_token)
+           VALUES (?, ?, ?, ?, ?, ?, NULL, ?)""",
         (
             datetime.now().strftime("%Y-%m-%d %H:%M"),
             source,
@@ -108,6 +124,7 @@ def check():
             result["risk"],
             result["category"],
             "\n".join(result["reasons"]),
+            current_uid(),
         ),
     )
     conn.commit()
@@ -124,7 +141,7 @@ def check():
         source=source,
         risk=result["risk"],
         category=result["category"],
-        reasons=result["reasons"],
+        reasons=view["reasons"],
         summary=view["summary"],
         advice=view["advice"],
         child_message=view["child_message"],
@@ -136,7 +153,8 @@ def history():
     """Show all past checks, newest first."""
     conn = get_db()
     rows = conn.execute(
-        "SELECT id, created_at, source, risk FROM checks ORDER BY id DESC"
+        "SELECT id, created_at, source, risk FROM checks WHERE user_token = ? ORDER BY id DESC",
+        (current_uid(),),
     ).fetchall()
     conn.close()
     return render_template("history.html", rows=rows)
@@ -146,7 +164,9 @@ def history():
 def detail(check_id):
     """Show the full detail of one past check, rendered in the current language."""
     conn = get_db()
-    row = conn.execute("SELECT * FROM checks WHERE id = ?", (check_id,)).fetchone()
+    row = conn.execute(
+        "SELECT * FROM checks WHERE id = ? AND user_token = ?", (check_id, current_uid())
+    ).fetchone()
     conn.close()
     if row is None:
         return redirect(url_for("history"))
@@ -158,7 +178,7 @@ def detail(check_id):
     return render_template(
         "detail.html",
         row=row,
-        reasons=reasons,
+        reasons=view["reasons"],
         summary=view["summary"],
         advice=view["advice"],
         child_message=view["child_message"],
@@ -170,7 +190,10 @@ def feedback(check_id):
     """Record whether a past check was helpful (a small learning loop)."""
     value = 1 if request.form.get("helpful") == "yes" else 0
     conn = get_db()
-    conn.execute("UPDATE checks SET helpful = ? WHERE id = ?", (value, check_id))
+    conn.execute(
+        "UPDATE checks SET helpful = ? WHERE id = ? AND user_token = ?",
+        (value, check_id, current_uid()),
+    )
     conn.commit()
     conn.close()
     return redirect(url_for("detail", check_id=check_id))
@@ -180,6 +203,12 @@ def feedback(check_id):
 def about():
     """Scope and disclaimer page."""
     return render_template("about.html")
+
+
+@app.route("/privacy")
+def privacy():
+    """Plain-language, region-aware privacy policy."""
+    return render_template("privacy.html")
 
 
 if __name__ == "__main__":
