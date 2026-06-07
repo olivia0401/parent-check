@@ -15,9 +15,9 @@ from tests.dataset import CASES
 
 def main():
     exact = 0
-    missed_scam = []     # kind=scam, predicted "ok"  -> dangerous
-    false_alarm = []     # kind=benign, predicted != "ok"
-    under_warned = []    # warned, but a weaker level than ideal
+    missed_scam = []  # kind=scam, predicted "ok"  -> dangerous
+    false_alarm = []  # kind=benign, predicted != "ok"
+    under_warned = []  # warned, but a weaker level than ideal
     by_kind = defaultdict(lambda: {"n": 0, "warned": 0, "exact": 0})
 
     for case in CASES:
@@ -50,10 +50,16 @@ def main():
     print(f"Cases: {total}")
     print(f"Exact accuracy:        {exact}/{total} = {pct(exact, total)}")
     print()
-    print(f"Scam recall (warned):  {scam['warned']}/{scam['n']} = {pct(scam['warned'], scam['n'])}")
+    print(
+        f"Scam recall (warned):  {scam['warned']}/{scam['n']} = {pct(scam['warned'], scam['n'])}"
+    )
     print(f"  MISSED SCAMS (danger): {len(missed_scam)}")
-    print(f"Health warned:         {health['warned']}/{health['n']} = {pct(health['warned'], health['n'])}")
-    print(f"Benign kept clean:     {benign['n'] - len(false_alarm)}/{benign['n']} = {pct(benign['n'] - len(false_alarm), benign['n'])}")
+    print(
+        f"Health warned:         {health['warned']}/{health['n']} = {pct(health['warned'], health['n'])}"
+    )
+    print(
+        f"Benign kept clean:     {benign['n'] - len(false_alarm)}/{benign['n']} = {pct(benign['n'] - len(false_alarm), benign['n'])}"
+    )
     print(f"  FALSE ALARMS:          {len(false_alarm)}")
     print(f"Warned but wrong level:  {len(under_warned)}")
 

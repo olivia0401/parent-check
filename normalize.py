@@ -17,7 +17,7 @@ _KEEP = re.compile(r"[^0-9a-z一-鿿]")
 # A deliberately small, low-false-positive list of known evasion variants.
 # Extend this as real evasions are observed in the wild.
 VARIANTS = {
-    "yzm": "验证码",      # pinyin initials for 验证码 (verification code)
+    "yzm": "验证码",  # pinyin initials for 验证码 (verification code)
     "zhuanzhang": "转账",  # pinyin for 转账 (transfer money)
 }
 
@@ -27,7 +27,7 @@ def to_halfwidth(s):
     out = []
     for ch in s:
         code = ord(ch)
-        if code == 0x3000:          # full-width space
+        if code == 0x3000:  # full-width space
             code = 0x20
         elif 0xFF01 <= code <= 0xFF5E:  # full-width ASCII range
             code -= 0xFEE0

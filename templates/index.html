@@ -8,6 +8,7 @@
   <div class="safety">{{ t.safety_warning }}</div>
 
   <form action="{{ url_for('check') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
     <label for="content">{{ t.label_content }}</label>
     <textarea
       id="content"

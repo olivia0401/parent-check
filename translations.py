@@ -20,7 +20,6 @@ TRANSLATIONS = {
         "nav_history": "历史",
         "nav_about": "关于",
         "footer": "这个应用不能代替医生、警察、银行或家人，只帮你先停一下、再确认。",
-
         # home / index
         "home_title": "拿不准，先求证",
         "home_lead": "看到养生文章、保健品广告、可疑短信或奇怪链接，先别急。把内容写下来，我帮你看看。",
@@ -32,11 +31,22 @@ TRANSLATIONS = {
         "trust_line": "这个工具会偏保守：宁可提醒你小心，也不轻易说“安全”。",
         "examples_heading": "或试试这几个例子（点一下自动填入）：",
         "examples": [
-            {"label": "保健品广告", "source": "supplement_ad", "text": "这款天然保健品可以调理三高，不用吃药，限时优惠，今天下单买二送一。"},
-            {"label": "诈骗短信", "source": "suspicious_msg", "text": "Royal Mail: Your parcel is waiting for redelivery. Please pay £1.99 at this link within 24 hours."},
-            {"label": "养生谣言", "source": "health_article", "text": "每天喝这种水可以清除血管垃圾，很多医生都不会告诉你。"},
+            {
+                "label": "保健品广告",
+                "source": "supplement_ad",
+                "text": "这款天然保健品可以调理三高，不用吃药，限时优惠，今天下单买二送一。",
+            },
+            {
+                "label": "诈骗短信",
+                "source": "suspicious_msg",
+                "text": "Royal Mail: Your parcel is waiting for redelivery. Please pay £1.99 at this link within 24 hours.",
+            },
+            {
+                "label": "养生谣言",
+                "source": "health_article",
+                "text": "每天喝这种水可以清除血管垃圾，很多医生都不会告诉你。",
+            },
         ],
-
         # content-source labels (keys are the codes stored in the database)
         "sources": {
             "health_article": "养生文章",
@@ -44,7 +54,6 @@ TRANSLATIONS = {
             "suspicious_msg": "可疑短信",
             "other": "其他",
         },
-
         # result
         "result_label": "结论",
         "risk": {
@@ -60,9 +69,21 @@ TRANSLATIONS = {
         },
         "advice": {
             "none": [],
-            "scam": ["不要点任何链接", "不要转账或付款", "不要把验证码、银行卡或身份证号告诉任何人"],
-            "health": ["不要马上付款购买", "不要因为它而停掉医生开的药", "不要相信“包治百病/根治”这类说法"],
-            "mixed": ["先不要付款、转账或点链接", "不要泄露个人信息或验证码", "拿不准就先停下来，问家人确认"],
+            "scam": [
+                "不要点任何链接",
+                "不要转账或付款",
+                "不要把验证码、银行卡或身份证号告诉任何人",
+            ],
+            "health": [
+                "不要马上付款购买",
+                "不要因为它而停掉医生开的药",
+                "不要相信“包治百病/根治”这类说法",
+            ],
+            "mixed": [
+                "先不要付款、转账或点链接",
+                "不要泄露个人信息或验证码",
+                "拿不准就先停下来，问家人确认",
+            ],
         },
         "reasons_heading": "发现的问题",
         "reason_model": "AI 模型判定为可疑",
@@ -86,7 +107,6 @@ TRANSLATIONS = {
         "copy_wechat_id": "复制微信号",
         "save_view": "保存并查看记录",
         "back_home": "返回首页",
-
         # generated "send to family" message
         "reason_sep": "、",
         "child_generic_src": "一些内容",
@@ -94,21 +114,19 @@ TRANSLATIONS = {
         "child_verdict": "App 判断：{risk}。",
         "child_reason": "原因：内容里出现了 {reasons}。",
         "child_advice": "建议：先不要付款、不要点链接、不要停药，最好等你或医生确认后再决定。",
-
         # history
         "history_title": "历史记录",
         "history_empty": "还没有记录。回到首页求证一条试试。",
-        "history_note": "记录只保存在你这台设备的浏览器里，不会公开，你可以随时清除。",
-
+        "history_note": "我们只在服务器保存判断摘要（不含你输入的原文），并用你浏览器里的随机编号区分，只有你能看到。点下面的「清除历史」可随时从服务器删除。",
+        "history_clear": "清除历史",
+        "history_clear_confirm": "确定要清除你的全部历史记录吗？",
         # detail
-        "detail_content": "当时的内容",
         "detail_child": "发给孩子的话",
         "feedback_q": "这次有帮助吗？",
         "feedback_yes": "有帮助",
         "feedback_no": "没帮助",
         "feedback_thanks": "你的反馈：{ans}（谢谢）",
         "back_history": "返回历史",
-
         # about
         "about_title": "关于这个应用",
         "about_lead": "“爸妈求证”是一个帮助长辈在拿不准时先停一下的小工具。",
@@ -118,7 +136,6 @@ TRANSLATIONS = {
         "about_cannot_text": "这个应用不能代替医生、警察、银行或家人。它不会告诉你某件事一定“安全”，因为真实世界里没有人能保证这一点。它只是帮你在做决定前多停一秒，用更谨慎的方式判断，并鼓励你向家人或专业人士确认。",
         "about_why_title": "为什么用规则，而不是 AI",
         "about_why_text": "在涉及钱和健康的高风险场景里，“能解释清楚为什么”比“看起来聪明”更重要。规则判断稳定、可预测，而且每一次都能明确告诉你它为什么这么判断。",
-
         # privacy policy
         "nav_privacy": "隐私",
         "privacy_title": "隐私说明",
@@ -130,12 +147,11 @@ TRANSLATIONS = {
         "privacy_not_title": "我们不会做的事",
         "privacy_not_text": "我们不要求你的姓名、账号或登录，不收集你的位置，不出售你的数据，也不会把你的内容发给任何第三方 AI（判断在本应用内完成）。",
         "privacy_private_title": "你的记录只属于你",
-        "privacy_private_text": "历史记录只在你自己的浏览器里可见。清除浏览器的 Cookie 或网站数据，就会断开这个关联。",
+        "privacy_private_text": "历史记录用你浏览器里的随机编号区分，只有你能看到。你可以在历史页点「清除历史」从服务器删除，或清除浏览器 Cookie 断开关联。",
         "privacy_rights_title": "你的权利",
         "privacy_contact_title": "联系我们",
         "privacy_contact_text": "有任何关于数据的问题，请联系：seal80644748@outlook.com",
     },
-
     # --------------------------------------------------------------- English
     "en": {
         "other_lang": "zh",
@@ -145,7 +161,6 @@ TRANSLATIONS = {
         "nav_history": "History",
         "nav_about": "About",
         "footer": "This app can't replace a doctor, the police, your bank or your family — it just helps you pause and check.",
-
         # home / index
         "home_title": "Not sure? Check first",
         "home_lead": "Seen a health article, a supplement ad, a suspicious text or a strange link? Don't rush. Write it down here and I'll take a look.",
@@ -157,18 +172,28 @@ TRANSLATIONS = {
         "trust_line": "This tool is deliberately cautious: it would rather warn you than ever call something “safe”.",
         "examples_heading": "Or try an example (tap to fill it in):",
         "examples": [
-            {"label": "Supplement ad", "source": "supplement_ad", "text": "This natural supplement controls high blood pressure, sugar and cholesterol with no need for medication. Limited-time offer, buy two get one free today."},
-            {"label": "Scam text", "source": "suspicious_msg", "text": "Royal Mail: Your parcel is waiting for redelivery. Please pay £1.99 at this link within 24 hours."},
-            {"label": "Health myth", "source": "health_article", "text": "Drinking this water every day clears the rubbish out of your blood vessels, something many doctors won't tell you."},
+            {
+                "label": "Supplement ad",
+                "source": "supplement_ad",
+                "text": "This natural supplement controls high blood pressure, sugar and cholesterol with no need for medication. Limited-time offer, buy two get one free today.",
+            },
+            {
+                "label": "Scam text",
+                "source": "suspicious_msg",
+                "text": "Royal Mail: Your parcel is waiting for redelivery. Please pay £1.99 at this link within 24 hours.",
+            },
+            {
+                "label": "Health myth",
+                "source": "health_article",
+                "text": "Drinking this water every day clears the rubbish out of your blood vessels, something many doctors won't tell you.",
+            },
         ],
-
         "sources": {
             "health_article": "Health article",
             "supplement_ad": "Supplement ad",
             "suspicious_msg": "Suspicious message",
             "other": "Other",
         },
-
         "result_label": "Verdict",
         "risk": {
             "ok": "No obvious risk found — still check with family",
@@ -183,9 +208,21 @@ TRANSLATIONS = {
         },
         "advice": {
             "none": [],
-            "scam": ["Don't click any links", "Don't transfer money or pay", "Never share codes, card or ID numbers with anyone"],
-            "health": ["Don't rush to pay for it", "Don't stop any medication your doctor prescribed", "Don't believe 'cure-all' or 'completely cures' claims"],
-            "mixed": ["Don't pay, transfer money or click links for now", "Don't share personal information or codes", "If you're unsure, stop and ask a family member"],
+            "scam": [
+                "Don't click any links",
+                "Don't transfer money or pay",
+                "Never share codes, card or ID numbers with anyone",
+            ],
+            "health": [
+                "Don't rush to pay for it",
+                "Don't stop any medication your doctor prescribed",
+                "Don't believe 'cure-all' or 'completely cures' claims",
+            ],
+            "mixed": [
+                "Don't pay, transfer money or click links for now",
+                "Don't share personal information or codes",
+                "If you're unsure, stop and ask a family member",
+            ],
         },
         "reasons_heading": "What looked risky",
         "reason_model": "flagged as suspicious by the model",
@@ -203,26 +240,23 @@ TRANSLATIONS = {
         "change_number": "Change number",
         "save_view": "Save and view record",
         "back_home": "Back to home",
-
         "reason_sep": ", ",
         "child_generic_src": "something",
         "child_intro": "I just saw {src} and wanted to check with you.",
         "child_verdict": "The app says: {risk}.",
         "child_reason": "Why: it contained {reasons}.",
         "child_advice": "Suggestion: don't pay, don't click any links, and don't stop any medication until you or a doctor have confirmed.",
-
         "history_title": "History",
         "history_empty": "No records yet. Go to the home page and check something.",
-        "history_note": "Your history is saved only in this browser, never shared. You can clear it anytime.",
-
-        "detail_content": "The content",
+        "history_note": "We store only a summary of each check (never the text you entered) on the server, separated by a random id in your browser, so only you can see it. Use “Clear history” below to delete it from the server anytime.",
+        "history_clear": "Clear history",
+        "history_clear_confirm": "Delete all of your history?",
         "detail_child": "Message for family",
         "feedback_q": "Was this helpful?",
         "feedback_yes": "Helpful",
         "feedback_no": "Not helpful",
         "feedback_thanks": "Your feedback: {ans} (thank you)",
         "back_history": "Back to history",
-
         "about_title": "About this app",
         "about_lead": "ScamShield for Parents is a small tool that helps older people pause when they're not sure.",
         "about_can_title": "What it can do",
@@ -231,7 +265,6 @@ TRANSLATIONS = {
         "about_cannot_text": "This app can't replace a doctor, the police, your bank or your family. It will never tell you that something is definitely 'safe', because no one in the real world can guarantee that. It just helps you pause for a second before deciding, judge more carefully, and encourages you to confirm with family or a professional.",
         "about_why_title": "Why rules, not AI",
         "about_why_text": "In high-stakes situations involving money and health, being able to explain *why* matters more than looking clever. Rule-based judgement is stable and predictable, and it can always tell you exactly why it reached its verdict.",
-
         # privacy policy
         "nav_privacy": "Privacy",
         "privacy_title": "Privacy",
@@ -243,7 +276,7 @@ TRANSLATIONS = {
         "privacy_not_title": "What we never do",
         "privacy_not_text": "We don't ask for your name, account or login, don't collect your location, don't sell your data, and don't send your messages to any third-party AI — the check happens inside this app.",
         "privacy_private_title": "Your history is yours",
-        "privacy_private_text": "History is visible only in your own browser. Clearing your browser's cookies or site data breaks that link.",
+        "privacy_private_text": "Your history is separated by a random id in your browser, so only you can see it. You can delete it from the server with “Clear history” on the history page, or clear your browser cookies to break the link.",
         "privacy_rights_title": "Your rights",
         "privacy_contact_title": "Contact",
         "privacy_contact_text": "For any question about your data, contact: seal80644748@outlook.com",

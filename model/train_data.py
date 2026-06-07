@@ -22,24 +22,53 @@ TRAIN = [
     ("您的水电费逾期即将停供，请点击链接尽快缴费避免影响。", 1),
     ("你好妈，我换了个新手机号，旧号停用了，记一下。我急用钱你先打给我。", 1),
     ("您的贷款已批，放款前需先缴纳工本费到指定账户解冻额度。", 1),
-    ("Your parcel could not be delivered. Update your address and pay a fee: http://parcel-update.top", 1),
-    ("HMRC notice: you have an outstanding tax bill. Pay immediately at http://gov-tax-pay.icu to avoid a fine.", 1),
-    ("Your Netflix payment failed. Update your card details here: http://netflix-billing.click", 1),
-    ("We've detected suspicious login on your account. Verify now: http://secure-login-check.xyz", 1),
+    (
+        "Your parcel could not be delivered. Update your address and pay a fee: http://parcel-update.top",
+        1,
+    ),
+    (
+        "HMRC notice: you have an outstanding tax bill. Pay immediately at http://gov-tax-pay.icu to avoid a fine.",
+        1,
+    ),
+    (
+        "Your Netflix payment failed. Update your card details here: http://netflix-billing.click",
+        1,
+    ),
+    (
+        "We've detected suspicious login on your account. Verify now: http://secure-login-check.xyz",
+        1,
+    ),
     ("You have a refund of £150 waiting. Confirm your bank details to receive it.", 1),
-    ("This is the bank fraud team. Move your money to a safe account to protect it.", 1),
-    ("Invest £200 in crypto today and earn guaranteed daily profit, withdraw anytime.", 1),
+    (
+        "This is the bank fraud team. Move your money to a safe account to protect it.",
+        1,
+    ),
+    (
+        "Invest £200 in crypto today and earn guaranteed daily profit, withdraw anytime.",
+        1,
+    ),
     ("Work from home, earn £300 a day liking videos, pay a small deposit to start.", 1),
-    ("Hi Dad, my phone is broken, texting from a mate's number. Please send money urgently.", 1),
-    ("Your parcel from DPD needs a £1.45 redelivery fee, pay at www.dpd-reschedule.top", 1),
-    ("Call this number now to claim your compensation before it expires: 0906 123 4567.", 1),
-    ("Install this remote support tool and let our agent access your computer to fix it.", 1),
+    (
+        "Hi Dad, my phone is broken, texting from a mate's number. Please send money urgently.",
+        1,
+    ),
+    (
+        "Your parcel from DPD needs a £1.45 redelivery fee, pay at www.dpd-reschedule.top",
+        1,
+    ),
+    (
+        "Call this number now to claim your compensation before it expires: 0906 123 4567.",
+        1,
+    ),
+    (
+        "Install this remote support tool and let our agent access your computer to fix it.",
+        1,
+    ),
     ("您的微信支付被限制，请点击链接进行实名认证解除限制。", 1),
     ("您参与的购物返现活动需先垫付货款，完成任务后连本带利返还。", 1),
     ("法院传票通知，您有未结案件，请联系下方电话配合处理保证金。", 1),
     ("您的银行卡已被锁定，回复短信并提供卡号有效期解锁。", 1),
     ("赶紧的，我是你侄子，手机丢了用同学的号，先借我两千救急。", 1),
-
     # ---------------- health rumours (label 0) ----------------
     ("这款酵素能排毒养颜，坚持喝一个月清肠又减肥。", 0),
     ("纯中药调理，三个疗程根治多年老胃病，无任何副作用。", 0),
@@ -57,7 +86,6 @@ TRAIN = [
     ("吃这个偏方比化疗管用，很多癌症病人都好了。", 0),
     ("天然蜂胶增强抵抗力，预防一切慢性病。", 0),
     ("这款仪器理疗能根治糖尿病，停掉胰岛素也没事。", 0),
-
     # ---------------- benign (label 0) ----------------
     ("妈，晚上想吃红烧肉吗？我下班买点排骨回来。", 0),
     ("周末社区有合唱团活动，要不要一起去？", 0),

@@ -16,6 +16,15 @@
         </li>
       {% endfor %}
     </ul>
+
+    <form
+      action="{{ url_for('clear_history') }}"
+      method="post"
+      onsubmit="return confirm('{{ t.history_clear_confirm }}')"
+    >
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <button type="submit" class="link-button">{{ t.history_clear }}</button>
+    </form>
   {% else %}
     <p class="lead">{{ t.history_empty }}</p>
   {% endif %}

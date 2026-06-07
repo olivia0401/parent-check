@@ -11,24 +11,41 @@
 # we can always tell the user exactly WHY we flagged something. That is a design
 # choice, documented in the README.
 
+import re
+
 import blocklist
 import semantic
-from keywords import CRITICAL, SCAM, HEALTH, BENIGN
-from normalize import compact
+from keywords import CRITICAL, SCAM, HEALTH
+from normalize import compact, to_halfwidth
 
 # Risk levels (codes). We never have a "safe" level — only degrees of caution.
 RISK_OK = "ok"
 RISK_CAUTION = "caution"
 RISK_DANGER = "danger"
 
+_CJK = re.compile(r"[一-鿿]")
 
-def _find(terms, compact_text):
-    """Return the terms whose compact form appears in the compact text.
 
-    Using the normalized (compact) form lets us catch spaced-out or
-    full-width evasions like "验 证 码" or "ＶＥＲＩＦＹ".
+def _find(terms, compact_text, spaced_text):
+    """Return the terms that match.
+
+    Two strategies, because the two languages behave differently:
+      - Chinese terms: substring match on the COMPACT text, so spaced-out /
+        full-width evasions like "验 证 码" are still caught.
+      - English terms: WORD-BOUNDARY match on the lower-cased text, so short
+        words like "pin" don't falsely fire inside "shopping" or "click" inside
+        "clickbait".
     """
-    return [t for t in terms if compact(t) in compact_text]
+    found = []
+    for t in terms:
+        if _CJK.search(t):
+            if compact(t) in compact_text:
+                found.append(t)
+        else:
+            pattern = r"(?<![a-z0-9])" + re.escape(t.lower()) + r"(?![a-z0-9])"
+            if re.search(pattern, spaced_text):
+                found.append(t)
+    return found
 
 
 def analyze_content(content, source=""):
@@ -46,9 +63,10 @@ def analyze_content(content, source=""):
         reasons  -> the matched keywords (evidence, shown as-is)
     """
     ctext = compact(content)
-    hit_critical = _find(CRITICAL, ctext)
-    hit_scam = _find(SCAM, ctext)
-    hit_health = _find(HEALTH, ctext)
+    stext = to_halfwidth(content).lower()
+    hit_critical = _find(CRITICAL, ctext, stext)
+    hit_scam = _find(SCAM, ctext, stext)
+    hit_health = _find(HEALTH, ctext, stext)
 
     # Deterministic threat-intelligence floor: suspicious links / numbers.
     bl_danger, bl_reasons = blocklist.check(content)
@@ -89,9 +107,9 @@ def analyze_content(content, source=""):
         category = "mixed"
 
     # Combine evidence from all layers, de-duplicated, order preserved.
-    reasons = list(dict.fromkeys(
-        hit_critical + hit_scam + hit_health + bl_reasons + sem_reasons
-    ))
+    reasons = list(
+        dict.fromkeys(hit_critical + hit_scam + hit_health + bl_reasons + sem_reasons)
+    )
     return {"risk": risk, "category": category, "reasons": reasons}
 
 

@@ -18,11 +18,45 @@ from normalize import compact
 
 # Structural signals. Listed as readable tokens; matched on the compact form so
 # spacing / full-width / case don't matter. Matched tokens double as evidence.
-_NUMBER_CHANGE = ["新号码", "新号", "换了号", "换号", "new number", "this is my new number"]
-_MONEY = ["打钱", "打一点", "打点", "汇钱", "汇款", "转账", "转钱", "借钱", "付钱",
-          "急用钱", "send money", "transfer", "help pay", "pay a bill", "wire"]
-_FAMILY = ["妈", "爸", "儿子", "女儿", "孙子", "孙女", "hi mum", "hi dad",
-           "grandma", "grandpa", "grandson", "granddaughter"]
+_NUMBER_CHANGE = [
+    "新号码",
+    "新号",
+    "换了号",
+    "换号",
+    "new number",
+    "this is my new number",
+]
+_MONEY = [
+    "打钱",
+    "打一点",
+    "打点",
+    "汇钱",
+    "汇款",
+    "转账",
+    "转钱",
+    "借钱",
+    "付钱",
+    "急用钱",
+    "send money",
+    "transfer",
+    "help pay",
+    "pay a bill",
+    "wire",
+]
+_FAMILY = [
+    "妈",
+    "爸",
+    "儿子",
+    "女儿",
+    "孙子",
+    "孙女",
+    "hi mum",
+    "hi dad",
+    "grandma",
+    "grandpa",
+    "grandson",
+    "granddaughter",
+]
 _URGENCY = ["急", "赶紧", "马上", "尽快", "quickly", "urgent", "asap"]
 
 
@@ -33,7 +67,12 @@ def escalate(content):
     def hits(terms):
         return [t for t in terms if compact(t) in c]
 
-    nc, money, fam, urg = hits(_NUMBER_CHANGE), hits(_MONEY), hits(_FAMILY), hits(_URGENCY)
+    nc, money, fam, urg = (
+        hits(_NUMBER_CHANGE),
+        hits(_MONEY),
+        hits(_FAMILY),
+        hits(_URGENCY),
+    )
 
     extra = 0
     reasons = []
@@ -61,6 +100,7 @@ def _load_model():
     _model_cache["loaded"] = True
     try:
         import joblib  # imported lazily so the web app needs no ML deps
+
         path = os.path.join(os.path.dirname(__file__), "model", "scam_model.joblib")
         _model_cache["pipe"] = joblib.load(path)
     except Exception:

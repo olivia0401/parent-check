@@ -24,10 +24,15 @@ MODEL_PATH = os.path.join(os.path.dirname(__file__), "model", "scam_model.joblib
 
 
 def build_pipeline():
-    return Pipeline([
-        ("tfidf", TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 4), min_df=1)),
-        ("clf", LogisticRegression(class_weight="balanced", max_iter=1000)),
-    ])
+    return Pipeline(
+        [
+            (
+                "tfidf",
+                TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 4), min_df=1),
+            ),
+            ("clf", LogisticRegression(class_weight="balanced", max_iter=1000)),
+        ]
+    )
 
 
 def main():
@@ -38,7 +43,9 @@ def main():
 
     # 5-fold cross-validation = an honest estimate of out-of-sample performance.
     scores = cross_val_score(pipe, texts, labels, cv=5, scoring="f1")
-    print(f"Training examples: {len(TRAIN)} ({sum(labels)} scam / {len(labels) - sum(labels)} not)")
+    print(
+        f"Training examples: {len(TRAIN)} ({sum(labels)} scam / {len(labels) - sum(labels)} not)"
+    )
     print(f"5-fold cross-validated F1: {scores.mean():.2f} (+/- {scores.std():.2f})")
 
     # Fit on everything and save.

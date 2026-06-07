@@ -214,13 +214,23 @@ this as a security tool, not just a web form:
   an anonymous per-browser id, so each visitor sees only their own history.
 - **No third-party calls** — the check runs locally; the optional model is off by
   default, so messages never leave the server.
-- **Session cookies** are `HttpOnly` + `SameSite=Lax` (which also mitigates CSRF
-  on the POST forms) and `Secure` in production.
-- **Config** — `debug` is off in production (gunicorn); the secret key comes from
-  an environment variable; submitted text is length-capped.
+- **CSRF** — every POST form carries a per-session token that is verified before
+  the action runs; `SameSite=Lax` cookies are a second layer.
+- **Right to erase** — `POST /history/clear` deletes a browser's records from the
+  server; the history page has a "Clear history" button.
+- **Matching precision** — English keywords match on word boundaries (so "pin"
+  doesn't fire inside "shopping"); Chinese uses compact substring matching to
+  resist spacing evasion.
+- **Session cookies** are `HttpOnly` + `SameSite=Lax` and `Secure` in production.
+- **Config** — `debug` is off in production (gunicorn); the secret key is
+  *required* from the environment in production (no fallback); dependencies are
+  pinned; the `source` field is whitelisted; submitted text is length-capped.
+- **Tested** — `python -m pytest` covers the judgement logic (including the
+  no-false-positive cases), CSRF rejection and per-browser isolation; CI runs
+  ruff + pytest + the accuracy check on every push.
 
 Known limits I would address for a larger deployment: per-request rate limiting,
-an explicit CSRF token (currently relying on `SameSite=Lax`), and automated
+moving from SQLite to Postgres with a data-retention policy, and automated
 dependency scanning.
 
 #### Limitations and future work

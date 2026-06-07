@@ -17,6 +17,7 @@
 import os
 import secrets
 import sqlite3
+from contextlib import closing
 from datetime import datetime
 
 from flask import Flask, redirect, render_template, request, session, url_for
@@ -26,9 +27,15 @@ from regions import current_region, current_region_code
 from translations import TRANSLATIONS
 
 app = Flask(__name__)
-# In production (Render) the secret key is supplied via an environment variable;
-# the fallback is only for local development.
-app.secret_key = os.environ.get("SECRET_KEY", "parent-check-dev-key")
+# The secret key must come from the environment in production. We only fall back
+# to a fixed dev key locally; on Render (which sets the RENDER env var) a missing
+# key is a hard error rather than a silent, forgeable default.
+_secret = os.environ.get("SECRET_KEY")
+if not _secret:
+    if os.environ.get("RENDER"):
+        raise RuntimeError("SECRET_KEY must be set in production")
+    _secret = "dev-only-key-not-for-production"
+app.secret_key = _secret
 
 # Session-cookie hardening. SameSite=Lax also mitigates CSRF on our POST forms
 # (the cookie isn't sent on cross-site POSTs). Secure is enabled in production
@@ -36,7 +43,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "parent-check-dev-key")
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=bool(os.environ.get("SECRET_KEY")),
+    SESSION_COOKIE_SECURE=bool(os.environ.get("RENDER")),  # HTTPS in production
 )
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "parent_check.db")
@@ -60,10 +67,9 @@ def init_db():
     schema = os.path.join(os.path.dirname(__file__), "schema.sql")
     with open(schema, "r", encoding="utf-8") as f:
         sql = f.read()
-    conn = get_db()
-    conn.executescript(sql)
-    conn.commit()
-    conn.close()
+    with closing(get_db()) as conn:
+        conn.executescript(sql)
+        conn.commit()
 
 
 # Make sure the table exists as soon as the module is imported. This matters in
@@ -86,6 +92,13 @@ def current_uid():
     return session["uid"]
 
 
+def csrf_token():
+    """A per-session token used to protect our POST forms against CSRF."""
+    if "csrf" not in session:
+        session["csrf"] = secrets.token_hex(16)
+    return session["csrf"]
+
+
 @app.before_request
 def remember_language():
     """If the request asks to switch language (?lang=...), store the choice."""
@@ -94,15 +107,25 @@ def remember_language():
         session["lang"] = lang
 
 
+@app.before_request
+def csrf_protect():
+    """Reject POSTs whose CSRF token doesn't match the session's."""
+    if request.method == "POST":
+        sent = request.form.get("csrf_token", "")
+        if not sent or sent != session.get("csrf"):
+            return "Bad request (invalid CSRF token).", 400
+
+
 @app.context_processor
 def inject_translations():
-    """Make `t`, `lang` and the region config available in every template."""
+    """Make `t`, `lang`, region config and the CSRF token available everywhere."""
     lang = current_lang()
     return {
         "t": TRANSLATIONS[lang],
         "lang": lang,
         "region": current_region(),
         "region_code": current_region_code(),
+        "csrf_token": csrf_token(),
     }
 
 
@@ -117,6 +140,8 @@ def check():
     """Analyze submitted text, store the result, and show the result page."""
     content = (request.form.get("content") or "").strip()[:MAX_CONTENT]
     source = request.form.get("source") or "other"
+    if source not in SOURCE_CODES:  # only accept known source codes
+        source = "other"
 
     if not content:
         return redirect(url_for("index"))
@@ -126,23 +151,22 @@ def check():
     # Save this check to the database (Week 7: INSERT with parameters).
     # Data minimisation: we store the verdict, category, matched signals and time
     # — but NOT the original text the user pasted, which may contain personal data.
-    conn = get_db()
-    cur = conn.execute(
-        """INSERT INTO checks
-           (created_at, source, risk, category, reasons, helpful, user_token)
-           VALUES (?, ?, ?, ?, ?, NULL, ?)""",
-        (
-            datetime.now().strftime("%Y-%m-%d %H:%M"),
-            source,
-            result["risk"],
-            result["category"],
-            "\n".join(result["reasons"]),
-            current_uid(),
-        ),
-    )
-    conn.commit()
-    check_id = cur.lastrowid
-    conn.close()
+    with closing(get_db()) as conn:
+        cur = conn.execute(
+            """INSERT INTO checks
+               (created_at, source, risk, category, reasons, helpful, user_token)
+               VALUES (?, ?, ?, ?, ?, NULL, ?)""",
+            (
+                datetime.now().strftime("%Y-%m-%d %H:%M"),
+                source,
+                result["risk"],
+                result["category"],
+                "\n".join(result["reasons"]),
+                current_uid(),
+            ),
+        )
+        conn.commit()
+        check_id = cur.lastrowid
 
     # Turn the stored codes into words in the current language.
     t = TRANSLATIONS[current_lang()]
@@ -164,23 +188,22 @@ def check():
 @app.route("/history")
 def history():
     """Show all past checks, newest first."""
-    conn = get_db()
-    rows = conn.execute(
-        "SELECT id, created_at, source, risk FROM checks WHERE user_token = ? ORDER BY id DESC",
-        (current_uid(),),
-    ).fetchall()
-    conn.close()
+    with closing(get_db()) as conn:
+        rows = conn.execute(
+            "SELECT id, created_at, source, risk FROM checks WHERE user_token = ? ORDER BY id DESC",
+            (current_uid(),),
+        ).fetchall()
     return render_template("history.html", rows=rows)
 
 
 @app.route("/history/<int:check_id>")
 def detail(check_id):
     """Show the full detail of one past check, rendered in the current language."""
-    conn = get_db()
-    row = conn.execute(
-        "SELECT * FROM checks WHERE id = ? AND user_token = ?", (check_id, current_uid())
-    ).fetchone()
-    conn.close()
+    with closing(get_db()) as conn:
+        row = conn.execute(
+            "SELECT * FROM checks WHERE id = ? AND user_token = ?",
+            (check_id, current_uid()),
+        ).fetchone()
     if row is None:
         return redirect(url_for("history"))
 
@@ -198,17 +221,25 @@ def detail(check_id):
     )
 
 
+@app.route("/history/clear", methods=["POST"])
+def clear_history():
+    """Delete this browser's history from the server (the user's right to erase)."""
+    with closing(get_db()) as conn:
+        conn.execute("DELETE FROM checks WHERE user_token = ?", (current_uid(),))
+        conn.commit()
+    return redirect(url_for("history"))
+
+
 @app.route("/feedback/<int:check_id>", methods=["POST"])
 def feedback(check_id):
     """Record whether a past check was helpful (a small learning loop)."""
     value = 1 if request.form.get("helpful") == "yes" else 0
-    conn = get_db()
-    conn.execute(
-        "UPDATE checks SET helpful = ? WHERE id = ? AND user_token = ?",
-        (value, check_id, current_uid()),
-    )
-    conn.commit()
-    conn.close()
+    with closing(get_db()) as conn:
+        conn.execute(
+            "UPDATE checks SET helpful = ? WHERE id = ? AND user_token = ?",
+            (value, check_id, current_uid()),
+        )
+        conn.commit()
     return redirect(url_for("detail", check_id=check_id))
 
 

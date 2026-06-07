@@ -14,14 +14,38 @@ URL_RE = re.compile(r"(?:https?://|www\.)[^\s，。、！？；）)]+", re.IGNOR
 
 # Link shorteners (hide the real destination).
 SHORTENERS = {
-    "bit.ly", "tinyurl.com", "t.cn", "goo.gl", "ow.ly", "is.gd", "buff.ly",
-    "rebrand.ly", "cutt.ly", "t.co", "rb.gy",
+    "bit.ly",
+    "tinyurl.com",
+    "t.cn",
+    "goo.gl",
+    "ow.ly",
+    "is.gd",
+    "buff.ly",
+    "rebrand.ly",
+    "cutt.ly",
+    "t.co",
+    "rb.gy",
 }
 
 # TLDs disproportionately used by scams / very cheap to register.
 BAD_TLDS = {
-    "xyz", "top", "icu", "click", "live", "vip", "buzz", "cn", "ru", "tk",
-    "gq", "ml", "cf", "rest", "monster", "sbs", "cyou",
+    "xyz",
+    "top",
+    "icu",
+    "click",
+    "live",
+    "vip",
+    "buzz",
+    "cn",
+    "ru",
+    "tk",
+    "gq",
+    "ml",
+    "cf",
+    "rest",
+    "monster",
+    "sbs",
+    "cyou",
 }
 
 # Tiny sample of known-bad domains. Replace/extend with a real feed.
@@ -59,7 +83,8 @@ def check(content):
             re.match(r"\d{1,3}(?:\.\d{1,3}){3}$", host)  # raw IP address
             or host in SHORTENERS
             or host in SAMPLE_BLOCKLIST
-            or host.startswith("xn--") or ".xn--" in host  # punycode look-alike
+            or host.startswith("xn--")
+            or ".xn--" in host  # punycode look-alike
             or host.rsplit(".", 1)[-1] in BAD_TLDS
         )
         if bad and host not in seen:

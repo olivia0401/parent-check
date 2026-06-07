@@ -32,6 +32,7 @@
     <h2>{{ t.feedback_q }}</h2>
     {% if row['helpful'] is none %}
       <form action="{{ url_for('feedback', check_id=row['id']) }}" method="post" class="feedback">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
         <button type="submit" name="helpful" value="yes" class="link-button">{{ t.feedback_yes }}</button>
         <button type="submit" name="helpful" value="no" class="link-button">{{ t.feedback_no }}</button>
       </form>
