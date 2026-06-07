@@ -21,6 +21,10 @@ REGIONS = {
             "zh": "怀疑被骗可举报：Action Fraud 0300 123 2040",
             "en": "Suspect a scam? Report to Action Fraud: 0300 123 2040",
         },
+        "health_line": {
+            "zh": "身体不适请联系家庭医生(GP)；非紧急可拨 NHS 111，紧急情况拨 999。",
+            "en": "If you feel unwell, contact your GP; for non-emergencies call NHS 111, in an emergency call 999.",
+        },
         "privacy": {
             "zh": "本应用遵循英国《通用数据保护条例》（UK GDPR）。",
             "en": "This app follows UK GDPR.",
@@ -40,6 +44,10 @@ REGIONS = {
         "report": {
             "zh": "怀疑被骗请立即拨打 110 报警",
             "en": "If you suspect a scam, call the police on 110",
+        },
+        "health_line": {
+            "zh": "身体不适请到正规医院就诊；紧急情况拨打 120。",
+            "en": "If you feel unwell, see a licensed hospital; in an emergency call 120.",
         },
         "privacy": {
             "zh": "本应用遵循中国《个人信息保护法》（PIPL）。",

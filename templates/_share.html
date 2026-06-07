@@ -52,5 +52,8 @@
     {% if category == 'scam' %}
       <p class="call-note">{{ region.report[lang] }}</p>
     {% endif %}
+    {% if category in ['health', 'mixed'] %}
+      <p class="call-note">{{ region.health_line[lang] }}</p>
+    {% endif %}
   </section>
 {% endmacro %}

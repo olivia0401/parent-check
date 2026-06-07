@@ -98,6 +98,7 @@ TRANSLATIONS = {
         # history
         "history_title": "历史记录",
         "history_empty": "还没有记录。回到首页求证一条试试。",
+        "history_note": "记录只保存在你这台设备的浏览器里，不会公开，你可以随时清除。",
 
         # detail
         "detail_content": "当时的内容",
@@ -148,10 +149,10 @@ TRANSLATIONS = {
         # home / index
         "home_title": "Not sure? Check first",
         "home_lead": "Seen a health article, a supplement ad, a suspicious text or a strange link? Don't rush. Write it down here and I'll take a look.",
-        "label_content": "Write what you saw here:",
+        "label_content": "Paste or describe what you saw:",
         "placeholder": "e.g. Your account is suspended. Click this link to verify and enter your one-time code…",
-        "label_source": "Where is it from:",
-        "submit": "Check it",
+        "label_source": "What kind of thing is it?",
+        "submit": "Check this for me",
         "safety_warning": "Do not enter bank card numbers, verification codes, passwords or ID details. If someone asks you to transfer money, share a code, download an app or click a link, contact your family or an official channel first.",
         "trust_line": "This tool is deliberately cautious: it would rather warn you than ever call something “safe”.",
         "examples_heading": "Or try an example (tap to fill it in):",
@@ -212,6 +213,7 @@ TRANSLATIONS = {
 
         "history_title": "History",
         "history_empty": "No records yet. Go to the home page and check something.",
+        "history_note": "Your history is saved only in this browser, never shared. You can clear it anytime.",
 
         "detail_content": "The content",
         "detail_child": "Message for family",
