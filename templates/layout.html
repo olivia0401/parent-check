@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<!-- layout.html: shared page frame. Other templates fill the main block. -->
+<html lang="{{ lang }}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ t.brand }}</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles.css') }}"
+    />
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="{{ url_for('index') }}">{{ t.brand }}</a>
+      <nav>
+        <a href="{{ url_for('index') }}">{{ t.nav_home }}</a>
+        <a href="{{ url_for('history') }}">{{ t.nav_history }}</a>
+        <a href="{{ url_for('about') }}">{{ t.nav_about }}</a>
+        <!-- language toggle: switch language and return to the home page -->
+        <a class="lang" href="{{ url_for('index', lang=t.other_lang) }}"
+          >{{ t.other_lang_name }}</a
+        >
+      </nav>
+    </header>
+
+    <main>{% block main %}{% endblock %}</main>
+
+    <footer>
+      <p>{{ t.footer }}</p>
+    </footer>
+  </body>
+</html>

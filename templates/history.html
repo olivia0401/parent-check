@@ -1,0 +1,21 @@
+{% extends "layout.html" %}
+
+{% block main %}
+  <h1>{{ t.history_title }}</h1>
+
+  {% if rows %}
+    <ul class="history">
+      {% for row in rows %}
+        <li>
+          <a href="{{ url_for('detail', check_id=row['id']) }}">
+            <span class="when">{{ row['created_at'] }}</span>
+            <span class="src">{{ t.sources[row['source']] }}</span>
+            <span class="badge {{ row['risk'] }}">{{ t.risk[row['risk']] }}</span>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="lead">{{ t.history_empty }}</p>
+  {% endif %}
+{% endblock %}

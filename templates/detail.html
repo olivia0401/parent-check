@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+
+{% block main %}
+  <div class="risk-card {{ row['risk'] }}">
+    <p class="risk-label">{{ row['created_at'] }} · {{ t.sources[row['source']] }}</p>
+    <h1 class="risk-text">{{ t.risk[row['risk']] }}</h1>
+    <p class="summary">{{ summary }}</p>
+  </div>
+
+  <section>
+    <h2>{{ t.detail_content }}</h2>
+    <p class="quote">{{ row['content'] }}</p>
+  </section>
+
+  {% if reasons %}
+    <section>
+      <h2>{{ t.reasons_heading }}</h2>
+      <ul class="reasons">
+        {% for r in reasons %}<li>{{ r }}</li>{% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if advice %}
+    <section>
+      <h2>{{ t.advice_heading }}</h2>
+      <ol class="advice">
+        {% for a in advice %}<li>{{ a }}</li>{% endfor %}
+      </ol>
+    </section>
+  {% endif %}
+
+  <section>
+    <h2>{{ t.detail_child }}</h2>
+    <p class="quote">{{ child_message }}</p>
+  </section>
+
+  <section>
+    <h2>{{ t.feedback_q }}</h2>
+    {% if row['helpful'] is none %}
+      <form action="{{ url_for('feedback', check_id=row['id']) }}" method="post" class="feedback">
+        <button type="submit" name="helpful" value="yes" class="link-button">{{ t.feedback_yes }}</button>
+        <button type="submit" name="helpful" value="no" class="link-button">{{ t.feedback_no }}</button>
+      </form>
+    {% else %}
+      <p class="lead">{{ t.feedback_thanks.format(ans=(t.feedback_yes if row['helpful'] == 1 else t.feedback_no)) }}</p>
+    {% endif %}
+  </section>
+
+  <div class="actions">
+    <a class="link-button" href="{{ url_for('history') }}">{{ t.back_history }}</a>
+    <a class="link-button" href="{{ url_for('index') }}">{{ t.back_home }}</a>
+  </div>
+{% endblock %}

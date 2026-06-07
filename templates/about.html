@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+
+{% block main %}
+  <h1>{{ t.about_title }}</h1>
+
+  <p class="lead">{{ t.about_lead }}</p>
+
+  <section>
+    <h2>{{ t.about_can_title }}</h2>
+    <p class="quote">{{ t.about_can_text }}</p>
+  </section>
+
+  <section>
+    <h2>{{ t.about_cannot_title }}</h2>
+    <p class="quote">{{ t.about_cannot_text }}</p>
+  </section>
+
+  <section>
+    <h2>{{ t.about_why_title }}</h2>
+    <p class="quote">{{ t.about_why_text }}</p>
+  </section>
+{% endblock %}

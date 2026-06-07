@@ -1,0 +1,26 @@
+{% extends "layout.html" %}
+
+{% block main %}
+  <h1>{{ t.home_title }}</h1>
+  <p class="lead">{{ t.home_lead }}</p>
+
+  <form action="{{ url_for('check') }}" method="post">
+    <label for="content">{{ t.label_content }}</label>
+    <textarea
+      id="content"
+      name="content"
+      rows="6"
+      placeholder="{{ t.placeholder }}"
+      required
+    ></textarea>
+
+    <label for="source">{{ t.label_source }}</label>
+    <select id="source" name="source">
+      {% for code in sources %}
+        <option value="{{ code }}">{{ t.sources[code] }}</option>
+      {% endfor %}
+    </select>
+
+    <button type="submit" class="big-button">{{ t.submit }}</button>
+  </form>
+{% endblock %}

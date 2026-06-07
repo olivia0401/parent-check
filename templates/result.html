@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+
+{% block main %}
+  <div class="risk-card {{ risk }}">
+    <p class="risk-label">{{ t.result_label }}</p>
+    <h1 class="risk-text">{{ t.risk[risk] }}</h1>
+    <p class="summary">{{ summary }}</p>
+  </div>
+
+  {% if reasons %}
+    <section>
+      <h2>{{ t.reasons_heading }}</h2>
+      <ul class="reasons">
+        {% for r in reasons %}
+          <li>{{ r }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  {% if advice %}
+    <section>
+      <h2>{{ t.advice_heading }}</h2>
+      <ol class="advice">
+        {% for a in advice %}
+          <li>{{ a }}</li>
+        {% endfor %}
+      </ol>
+    </section>
+  {% endif %}
+
+  <section>
+    <h2>{{ t.child_heading }}</h2>
+    <textarea id="child-message" rows="7" readonly>{{ child_message }}</textarea>
+    <button type="button" class="big-button" onclick="copyMessage()">
+      {{ t.copy_button }}
+    </button>
+  </section>
+
+  <div class="actions">
+    <a class="link-button" href="{{ url_for('detail', check_id=check_id) }}">{{ t.save_view }}</a>
+    <a class="link-button" href="{{ url_for('index') }}">{{ t.back_home }}</a>
+  </div>
+
+  <script>
+    // Copy the generated family message to the clipboard.
+    function copyMessage() {
+      const box = document.getElementById("child-message");
+      box.select();
+      document.execCommand("copy");
+      alert("{{ t.copied }}");
+    }
+  </script>
+{% endblock %}

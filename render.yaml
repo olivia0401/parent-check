@@ -1,0 +1,13 @@
+# render.yaml — infrastructure config so Render can deploy this app automatically.
+# With this file in the repo, Render's "Blueprint" can set everything up in one click.
+services:
+  - type: web
+    name: parent-check
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # gunicorn is the production WSGI server; bind to the port Render provides.
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true   # Render generates a random secret for us
