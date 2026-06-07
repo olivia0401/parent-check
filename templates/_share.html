@@ -1,0 +1,34 @@
+{# Reusable block: the "message for family" with forward/call actions.
+   Used by both result.html and detail.html. #}
+{% macro share_and_call(t, risk, category, child_message) %}
+  <section>
+    <h2>{{ t.child_heading }}</h2>
+    <textarea id="child-message" rows="7" readonly data-copied="{{ t.copied }}">{{ child_message }}</textarea>
+    <button type="button" class="big-button" onclick="shareMessage()">{{ t.share_button }}</button>
+    <div class="actions">
+      <button type="button" class="link-button" onclick="whatsappShare()">{{ t.whatsapp_button }}</button>
+      <button type="button" class="link-button" onclick="copyMessage()">{{ t.copy_button }}</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>{{ t.call_heading }}</h2>
+    <div class="actions">
+      <div id="family-set" class="family-set" style="display: none">
+        <a id="family-call" class="link-button" href="tel:">{{ t.call_family }} <span class="num"></span></a>
+        <button type="button" class="link-button" onclick="changeFamily()">{{ t.change_number }}</button>
+      </div>
+      {% if risk != 'ok' and category in ['scam', 'mixed'] %}
+        <a class="link-button call-bank" href="tel:159">{{ t.call_bank }}</a>
+      {% endif %}
+    </div>
+    <div id="family-save" class="family-save">
+      <label for="family-number">{{ t.family_number_label }}</label>
+      <input id="family-number" type="tel" placeholder="{{ t.family_number_placeholder }}" />
+      <button type="button" class="link-button" onclick="saveFamily()">{{ t.save_number }}</button>
+    </div>
+    {% if category == 'scam' %}
+      <p class="call-note">{{ t.call_action_fraud }}</p>
+    {% endif %}
+  </section>
+{% endmacro %}

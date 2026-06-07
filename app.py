@@ -123,6 +123,7 @@ def check():
         check_id=check_id,
         source=source,
         risk=result["risk"],
+        category=result["category"],
         reasons=result["reasons"],
         summary=view["summary"],
         advice=view["advice"],

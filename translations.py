@@ -28,6 +28,14 @@ TRANSLATIONS = {
         "placeholder": "例如：您的医保账户异常，请点击链接完成认证，需要输入身份证和验证码……",
         "label_source": "内容来源：",
         "submit": "开始求证",
+        "safety_warning": "请不要输入银行卡号、验证码、密码或身份证信息。如果对方让你转账、提供验证码、下载 App、点链接，先联系家人或官方渠道。",
+        "trust_line": "这个工具会偏保守：宁可提醒你小心，也不轻易说“安全”。",
+        "examples_heading": "或试试这几个例子（点一下自动填入）：",
+        "examples": [
+            {"label": "保健品广告", "source": "supplement_ad", "text": "这款天然保健品可以调理三高，不用吃药，限时优惠，今天下单买二送一。"},
+            {"label": "诈骗短信", "source": "suspicious_msg", "text": "Royal Mail: Your parcel is waiting for redelivery. Please pay £1.99 at this link within 24 hours."},
+            {"label": "养生谣言", "source": "health_article", "text": "每天喝这种水可以清除血管垃圾，很多医生都不会告诉你。"},
+        ],
 
         # content-source labels (keys are the codes stored in the database)
         "sources": {
@@ -40,12 +48,12 @@ TRANSLATIONS = {
         # result
         "result_label": "结论",
         "risk": {
-            "ok": "看起来还好",
+            "ok": "暂未发现明显风险，仍建议确认",
             "caution": "要小心",
             "danger": "很可能有问题",
         },
         "summary": {
-            "none": "我没有看出明显风险。如果内容涉及付款、吃药或个人信息，还是建议再确认一下。",
+            "none": "我没有发现明显的高风险词语，但这不代表一定安全。涉及钱、药、验证码、链接或个人信息时，还是建议先问家人或联系官方渠道。",
             "scam": "这段内容有明显的诈骗特征，请非常小心。",
             "health": "这段内容像是在夸大保健品或养生效果。",
             "mixed": "这段内容里有一些需要小心的地方。",
@@ -61,6 +69,16 @@ TRANSLATIONS = {
         "child_heading": "发给孩子确认",
         "copy_button": "复制给孩子",
         "copied": "已复制，可以粘贴发给孩子了。",
+        "share_button": "转发给家人",
+        "whatsapp_button": "用 WhatsApp 发送",
+        "call_heading": "需要的话，打个电话核实",
+        "call_family": "打电话给家人",
+        "call_bank": "打电话给银行（拨 159）",
+        "call_action_fraud": "怀疑被骗可举报：Action Fraud 0300 123 2040",
+        "family_number_label": "家人电话（只保存在这台设备上）",
+        "family_number_placeholder": "输入家人手机号",
+        "save_number": "保存号码",
+        "change_number": "换号码",
         "save_view": "保存并查看记录",
         "back_home": "返回首页",
 
@@ -113,6 +131,14 @@ TRANSLATIONS = {
         "placeholder": "e.g. Your account is suspended. Click this link to verify and enter your one-time code…",
         "label_source": "Where is it from:",
         "submit": "Check it",
+        "safety_warning": "Do not enter bank card numbers, verification codes, passwords or ID details. If someone asks you to transfer money, share a code, download an app or click a link, contact your family or an official channel first.",
+        "trust_line": "This tool is deliberately cautious: it would rather warn you than ever call something “safe”.",
+        "examples_heading": "Or try an example (tap to fill it in):",
+        "examples": [
+            {"label": "Supplement ad", "source": "supplement_ad", "text": "This natural supplement controls high blood pressure, sugar and cholesterol with no need for medication. Limited-time offer, buy two get one free today."},
+            {"label": "Scam text", "source": "suspicious_msg", "text": "Royal Mail: Your parcel is waiting for redelivery. Please pay £1.99 at this link within 24 hours."},
+            {"label": "Health myth", "source": "health_article", "text": "Drinking this water every day clears the rubbish out of your blood vessels, something many doctors won't tell you."},
+        ],
 
         "sources": {
             "health_article": "Health article",
@@ -123,12 +149,12 @@ TRANSLATIONS = {
 
         "result_label": "Verdict",
         "risk": {
-            "ok": "Looks okay",
+            "ok": "No obvious risk found — still check with family",
             "caution": "Be careful",
             "danger": "Very likely a problem",
         },
         "summary": {
-            "none": "I didn't spot any clear risk. If it involves payment, medication or personal information, it's still worth double-checking.",
+            "none": "I didn't find obvious warning signs, but that does not mean it is definitely safe. If money, medicine, verification codes, links, or personal information are involved, please check with family or an official source first.",
             "scam": "This has clear signs of a scam — please be very careful.",
             "health": "This looks like it's exaggerating the effects of a supplement or health remedy.",
             "mixed": "There are a few things here worth being careful about.",
@@ -144,6 +170,16 @@ TRANSLATIONS = {
         "child_heading": "Send to your family to confirm",
         "copy_button": "Copy for family",
         "copied": "Copied — you can paste and send it to your family now.",
+        "share_button": "Forward to family",
+        "whatsapp_button": "Send via WhatsApp",
+        "call_heading": "If you need to, call to verify",
+        "call_family": "Call family",
+        "call_bank": "Call your bank (dial 159)",
+        "call_action_fraud": "Suspect a scam? Report to Action Fraud: 0300 123 2040",
+        "family_number_label": "Family phone (saved on this device only)",
+        "family_number_placeholder": "Enter a family phone number",
+        "save_number": "Save number",
+        "change_number": "Change number",
         "save_view": "Save and view record",
         "back_home": "Back to home",
 

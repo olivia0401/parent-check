@@ -27,13 +27,23 @@ acting. So I narrowed the idea down to a **family verification tool**: its singl
 most important output is the "send this to your child" message, which turns a
 lonely yes/no decision into a conversation.
 
+The need is real and local. Fraud is one of the largest crime categories in
+England and Wales: according to the ONS Crime Survey for England and Wales, the
+year ending December 2025 saw an estimated ~9.6 million headline crime incidents,
+of which ~4.4 million were fraud — close to half. The ONS also estimates around
+4.2 million fraud incidents in the year ending March 2025, roughly 3 million of
+which involved a loss, and the Home Office estimated the cost of fraud at about
+£14.4 billion for the year ending March 2024. My specific users — Chinese-speaking
+elderly in the UK — sit in a gap: UK tools are in English and aimed at British
+channels, while tools from China cannot reach them.
+
 #### How it works
 
 The user submits text on the home page. The text is scored by a rule-based engine
 and the result is one of three verdicts, deliberately worded to avoid false
 reassurance:
 
-- **看起来还好** (looks okay)
+- **暂未发现明显风险，仍建议确认** (no obvious risk found — still check)
 - **要小心** (be careful)
 - **很可能有问题** (very likely a problem)
 
@@ -94,7 +104,8 @@ each HEALTH keyword adds 1 to a separate caution score. If the user says the
 content is a "suspicious message" and there is already a signal, danger is nudged
 up by one — this is how the app uses the context the user provides instead of
 ignoring it. A danger score of 3 or more gives "很可能有问题"; any other signal
-gives "要小心"; nothing gives "看起来还好".
+gives "要小心"; nothing gives the conservative "no obvious risk found — still
+check with family".
 
 #### Why rules, not AI
 
@@ -106,6 +117,12 @@ can always tell the user exactly *why* it flagged something, and it can never
 wrongly saying "be careful" only mildly annoys the user, but wrongly saying
 "safe" could cost them their savings or their health, so the rules are tuned to
 lean conservative.
+
+I intentionally avoided ever telling users that something is "safe". In high-risk
+contexts such as scams, health claims and money transfers, a false sense of
+safety can be dangerous. Even the lowest-risk result is worded as "no obvious
+risk found — still check with family", shown in a neutral colour rather than
+green, and still encourages the user to confirm with family or an official source.
 
 #### The feedback loop
 
@@ -130,3 +147,9 @@ app deliberately does not read messages automatically, handle payments, or give
 medical advice. Future directions include OCR for uploaded screenshots, a
 language model layer (used only to *explain*, never to override the conservative
 verdict), and real notifications to family members.
+
+The current version works well as a CS50 web app and proof of concept. If I
+continued developing it, I would likely shift the product toward adult children
+as the primary users, because they are often the people who actually help their
+parents verify suspicious messages. That, rather than more keywords, is the real
+next step.

@@ -1,4 +1,5 @@
 {% extends "layout.html" %}
+{% from "_share.html" import share_and_call %}
 
 {% block main %}
   <div class="risk-card {{ row['risk'] }}">
@@ -30,10 +31,7 @@
     </section>
   {% endif %}
 
-  <section>
-    <h2>{{ t.detail_child }}</h2>
-    <p class="quote">{{ child_message }}</p>
-  </section>
+  {{ share_and_call(t, row['risk'], row['category'], child_message) }}
 
   <section>
     <h2>{{ t.feedback_q }}</h2>

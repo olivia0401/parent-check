@@ -4,6 +4,9 @@
   <h1>{{ t.home_title }}</h1>
   <p class="lead">{{ t.home_lead }}</p>
 
+  <!-- safety warning: most important thing to see before typing anything -->
+  <div class="safety">{{ t.safety_warning }}</div>
+
   <form action="{{ url_for('check') }}" method="post">
     <label for="content">{{ t.label_content }}</label>
     <textarea
@@ -23,4 +26,31 @@
 
     <button type="submit" class="big-button">{{ t.submit }}</button>
   </form>
+
+  <p class="trust">{{ t.trust_line }}</p>
+
+  <!-- one-tap examples: fill the form so first-time users can see it work -->
+  <section class="examples">
+    <h2>{{ t.examples_heading }}</h2>
+    {% for ex in t.examples %}
+      <button
+        type="button"
+        class="example-chip"
+        data-text="{{ ex.text }}"
+        data-source="{{ ex.source }}"
+        onclick="fillExample(this)"
+      >
+        {{ ex.label }}
+      </button>
+    {% endfor %}
+  </section>
+
+  <script>
+    // Fill the input box and source dropdown from a clicked example.
+    function fillExample(btn) {
+      document.getElementById("content").value = btn.getAttribute("data-text");
+      document.getElementById("source").value = btn.getAttribute("data-source");
+      document.getElementById("content").focus();
+    }
+  </script>
 {% endblock %}

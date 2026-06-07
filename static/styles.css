@@ -1,77 +1,187 @@
-/* styles.css — large fonts and big buttons, designed for elderly users.
-   Three risk colours: green (ok), amber (caution), red (danger). */
+/* styles.css — calm, trustworthy design for elderly users.
+   Principles kept throughout: large fonts, big tap targets, high contrast.
+   Three risk colours: neutral blue-grey (low), amber (caution), red (danger). */
+
+:root {
+  --bg: #eef2f6;
+  --surface: #ffffff;
+  --ink: #1f2933;
+  --ink-soft: #52606d;
+  --primary: #1f6feb;
+  --primary-dark: #1a5fd0;
+  --line: #dfe6ee;
+  --radius: 16px;
+  --shadow: 0 2px 4px rgba(20, 40, 70, 0.04), 0 8px 24px rgba(20, 40, 70, 0.08);
+  --shadow-sm: 0 1px 2px rgba(20, 40, 70, 0.06);
+}
 
 * {
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  font-size: 20px;
-  line-height: 1.7;
-  color: #1d1d1f;
-  background: #f5f5f7;
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
+body {
+  margin: 0;
+  font-family: "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei",
+    system-ui, sans-serif;
+  font-size: 20px;
+  line-height: 1.7;
+  color: var(--ink);
+  background: linear-gradient(180deg, #f3f7fb 0%, var(--bg) 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+/* ---------------------------------------------------------------- header */
 header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 16px 20px;
-  background: #ffffff;
-  border-bottom: 1px solid #e0e0e0;
+  gap: 10px;
+  padding: 14px 22px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: saturate(160%) blur(8px);
+  border-bottom: 1px solid var(--line);
 }
 
 .brand {
-  font-size: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 25px;
   font-weight: 700;
-  color: #1d1d1f;
+  color: var(--ink);
   text-decoration: none;
+  letter-spacing: -0.01em;
+}
+
+.brand::before {
+  content: "🛡️";
+  font-size: 24px;
+}
+
+nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 nav a {
-  margin-left: 18px;
-  color: #0066cc;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: var(--ink-soft);
   text-decoration: none;
-  font-size: 19px;
+  font-size: 18px;
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+}
+
+nav a:hover {
+  background: #eaf1fb;
+  color: var(--primary);
 }
 
 nav a.lang {
-  border: 1px solid #0066cc;
-  border-radius: 999px;
-  padding: 2px 12px;
-  font-size: 17px;
+  border: 1px solid var(--line);
+  color: var(--primary);
 }
 
+/* ----------------------------------------------------------------- main */
 main {
-  max-width: 640px;
+  max-width: 660px;
   margin: 0 auto;
-  padding: 24px 20px 48px;
+  padding: 32px 20px 56px;
+  animation: rise 0.3s ease;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 h1 {
-  font-size: 30px;
-  margin: 8px 0 16px;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 6px 0 14px;
 }
 
 h2 {
   font-size: 23px;
-  margin: 28px 0 10px;
+  font-weight: 600;
+  margin: 30px 0 12px;
 }
 
 .lead {
   font-size: 21px;
-  color: #444;
+  color: var(--ink-soft);
+  margin-top: 0;
 }
 
-/* --- form --- */
+/* group content into soft cards */
+section {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 20px 22px;
+  margin: 18px 0;
+}
+
+section h2 {
+  margin-top: 0;
+}
+
+/* ------------------------------------------------------------- safety box */
+.safety {
+  margin: 20px 0;
+  padding: 16px 18px;
+  font-size: 19px;
+  background: #fff5f4;
+  border: 1px solid #f3c9c4;
+  border-left: 6px solid #d64a3b;
+  border-radius: var(--radius);
+  color: #8a2a1f;
+  box-shadow: var(--shadow-sm);
+}
+
+.trust {
+  margin: 18px 0 6px;
+  font-size: 18px;
+  color: var(--ink-soft);
+}
+
+/* ----------------------------------------------------------------- form */
+form {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 22px;
+  margin-top: 8px;
+}
+
 label {
   display: block;
   font-weight: 600;
-  margin: 18px 0 8px;
+  margin: 16px 0 8px;
+}
+
+form label:first-child {
+  margin-top: 0;
 }
 
 textarea,
@@ -79,61 +189,142 @@ select {
   width: 100%;
   font-size: 20px;
   font-family: inherit;
+  color: var(--ink);
   padding: 14px;
-  border: 2px solid #c7c7cc;
+  border: 2px solid var(--line);
   border-radius: 12px;
-  background: #fff;
+  background: #fbfdff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(31, 111, 235, 0.15);
 }
 
 textarea[readonly] {
-  background: #f0f0f5;
+  background: #f1f5f9;
+}
+
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2352606d' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  padding-right: 44px;
 }
 
 .big-button {
   display: block;
   width: 100%;
-  margin-top: 20px;
-  padding: 18px;
+  margin-top: 22px;
+  padding: 17px;
   font-size: 22px;
   font-weight: 700;
+  font-family: inherit;
   color: #fff;
-  background: #0066cc;
+  background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
   border: none;
   border-radius: 14px;
+  box-shadow: 0 6px 16px rgba(31, 111, 235, 0.28);
   cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s, filter 0.12s;
 }
 
 .big-button:hover {
-  background: #0055aa;
+  filter: brightness(1.05);
+  box-shadow: 0 8px 22px rgba(31, 111, 235, 0.34);
 }
 
-/* --- risk card with three colours --- */
+.big-button:active {
+  transform: translateY(1px);
+  box-shadow: 0 4px 12px rgba(31, 111, 235, 0.28);
+}
+
+/* ------------------------------------------------------------- examples */
+.examples {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+.example-chip {
+  display: inline-block;
+  margin: 6px 8px 6px 0;
+  padding: 10px 18px;
+  font-size: 18px;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--primary);
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s, transform 0.12s, background 0.15s;
+}
+
+.example-chip:hover {
+  border-color: var(--primary);
+  background: #f4f8ff;
+  transform: translateY(-1px);
+}
+
+/* ------------------------------------------------------------ risk card */
 .risk-card {
-  border-radius: 16px;
-  padding: 24px;
-  margin-bottom: 8px;
+  position: relative;
+  border-radius: var(--radius);
+  padding: 26px 24px 24px;
+  margin-bottom: 4px;
   color: #fff;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.risk-card::before {
+  font-size: 30px;
+  line-height: 1;
+  display: block;
+  margin-bottom: 8px;
 }
 
 .risk-card.ok {
-  background: #2e8b57;
+  background: linear-gradient(135deg, #6b8194 0%, #54697b 100%);
 }
+.risk-card.ok::before {
+  content: "ℹ️";
+}
+
 .risk-card.caution {
-  background: #d98a00;
+  background: linear-gradient(135deg, #e8a13a 0%, #d4880f 100%);
 }
+.risk-card.caution::before {
+  content: "⚠️";
+}
+
 .risk-card.danger {
-  background: #c0392b;
+  background: linear-gradient(135deg, #d9513f 0%, #b5301f 100%);
+}
+.risk-card.danger::before {
+  content: "⛔";
 }
 
 .risk-label {
   margin: 0;
-  font-size: 18px;
-  opacity: 0.9;
+  font-size: 17px;
+  font-weight: 500;
+  opacity: 0.92;
 }
 
 .risk-text {
-  margin: 4px 0 10px;
-  font-size: 36px;
+  margin: 4px 0 12px;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
 }
 
 .summary {
@@ -141,44 +332,74 @@ textarea[readonly] {
   font-size: 21px;
 }
 
-/* --- lists --- */
-.reasons li,
-.advice li {
-  font-size: 21px;
-  margin: 6px 0;
+/* --------------------------------------------------------------- lists */
+.reasons {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.reasons li {
+  font-size: 18px;
+  font-weight: 500;
+  padding: 7px 14px;
+  background: #fdeceb;
+  color: #9a2c1f;
+  border-radius: 999px;
+}
+
+.advice {
+  margin: 0;
+  padding-left: 24px;
 }
 
 .advice li {
+  font-size: 21px;
   font-weight: 600;
+  margin: 8px 0;
 }
 
 .quote {
-  background: #fff;
-  border-left: 4px solid #0066cc;
-  border-radius: 8px;
+  background: #f5f8fc;
+  border-left: 4px solid var(--primary);
+  border-radius: 10px;
   padding: 14px 16px;
   font-size: 20px;
+  margin: 0;
+  white-space: pre-line;
 }
 
-/* --- actions --- */
+/* ------------------------------------------------------------- actions */
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 28px;
+  margin-top: 26px;
 }
 
 .link-button {
   flex: 1;
+  min-width: 140px;
   text-align: center;
   padding: 14px;
-  font-size: 19px;
-  color: #0066cc;
-  background: #fff;
-  border: 2px solid #0066cc;
+  font-size: 18px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--primary);
+  background: var(--surface);
+  border: 2px solid var(--primary);
   border-radius: 12px;
   text-decoration: none;
   cursor: pointer;
+  transition: background 0.15s, transform 0.12s;
+}
+
+.link-button:hover {
+  background: #eef4ff;
+  transform: translateY(-1px);
 }
 
 .feedback {
@@ -186,7 +407,51 @@ textarea[readonly] {
   gap: 12px;
 }
 
-/* --- history list --- */
+/* ----------------------------------------------------------- call / share */
+.family-set {
+  flex: 1;
+  display: flex;
+  gap: 12px;
+}
+
+.family-save label {
+  margin-top: 4px;
+}
+
+.family-save input {
+  width: 100%;
+  font-size: 20px;
+  font-family: inherit;
+  padding: 14px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: #fbfdff;
+  margin-bottom: 12px;
+}
+
+.family-save input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(31, 111, 235, 0.15);
+}
+
+/* the bank/emergency call buttons read as actions, not danger — green tint */
+.call-bank {
+  color: #1f7a3d;
+  border-color: #1f7a3d;
+}
+
+.call-bank:hover {
+  background: #eaf7ee;
+}
+
+.call-note {
+  margin: 14px 0 0;
+  font-size: 17px;
+  color: var(--ink-soft);
+}
+
+/* ------------------------------------------------------------- history */
 .history {
   list-style: none;
   padding: 0;
@@ -195,47 +460,75 @@ textarea[readonly] {
 .history li a {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   flex-wrap: wrap;
-  padding: 16px;
+  padding: 18px 20px;
   margin-bottom: 12px;
-  background: #fff;
-  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
   text-decoration: none;
-  color: #1d1d1f;
+  color: var(--ink);
+  transition: transform 0.12s, box-shadow 0.15s;
+}
+
+.history li a:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
 }
 
 .history .when {
-  color: #666;
-  font-size: 18px;
+  color: var(--ink-soft);
+  font-size: 17px;
 }
 
 .history .src {
   flex: 1;
+  font-weight: 600;
 }
 
 .badge {
-  padding: 4px 12px;
+  padding: 6px 14px;
   border-radius: 999px;
   color: #fff;
-  font-size: 17px;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .badge.ok {
-  background: #2e8b57;
+  background: #607d8b;
 }
 .badge.caution {
-  background: #d98a00;
+  background: #d4880f;
 }
 .badge.danger {
-  background: #c0392b;
+  background: #b5301f;
 }
 
+/* -------------------------------------------------------------- footer */
 footer {
-  max-width: 640px;
+  max-width: 660px;
   margin: 0 auto;
-  padding: 20px;
-  color: #888;
-  font-size: 16px;
+  padding: 24px 20px 36px;
+  color: #8595a4;
+  font-size: 15px;
   text-align: center;
+}
+
+/* -------------------------------------------------------- small screens */
+@media (max-width: 480px) {
+  body {
+    font-size: 19px;
+  }
+  h1 {
+    font-size: 29px;
+  }
+  main {
+    padding: 22px 16px 44px;
+  }
+  .risk-text {
+    font-size: 28px;
+  }
 }
