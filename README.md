@@ -225,13 +225,19 @@ this as a security tool, not just a web form:
 - **Config** — `debug` is off in production (gunicorn); the secret key is
   *required* from the environment in production (no fallback); dependencies are
   pinned; the `source` field is whitelisted; submitted text is length-capped.
+- **Rate limiting** — POSTs are throttled per client IP as a speed-bump against
+  abuse (in-memory; a multi-worker production deployment would use a shared store
+  such as Redis, or platform-level limiting).
+- **Logging** — the app logs verdicts and errors for observability but **never**
+  the text the user submitted.
 - **Tested** — `python -m pytest` covers the judgement logic (including the
   no-false-positive cases), CSRF rejection and per-browser isolation; CI runs
   ruff + pytest + the accuracy check on every push.
 
-Known limits I would address for a larger deployment: per-request rate limiting,
-moving from SQLite to Postgres with a data-retention policy, and automated
-dependency scanning.
+Known limits I would address for a larger deployment: moving from SQLite to
+Postgres with a data-retention policy — the code isolates all DB access in
+`get_db()`, so this is a contained change — and automated dependency scanning
+(e.g. `pip-audit` / Dependabot).
 
 #### Limitations and future work
 

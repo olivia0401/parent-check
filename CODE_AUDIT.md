@@ -17,7 +17,12 @@
 - **P1 评估只是脚本,无 CI** — 新增 `tests/test_app.py`(pytest)+ `.github/workflows/ci.yml`(push 自动跑 ruff + pytest + evaluate)。
 - **P1 source 未校验** — 后端校验 `source in SOURCE_CODES`,否则归为 "other"。
 
-仍保留为已知限制:速率限制、SQLite→Postgres + 保留期策略、学习型模型默认关闭(数据不足)、免费档冷启动。
+后续又补:
+- **限流(rate limiting)** — 按客户端 IP 对 POST 限速(内存版 speed-bump,30 次/60 秒);多 worker 生产应换共享存储(Redis)或平台级限流。
+- **可观测日志** — 记录判断结果与错误用于排障,**绝不记录用户输入的原文**。
+- **数据库迁移路线** — DB 访问都集中在 `get_db()`,从 SQLite 迁到 Postgres + 保留期策略是受控改动(已在 README 说明)。
+
+仍保留为已知限制:SQLite→Postgres + 保留期(MVP 阶段够用)、学习型模型默认关闭(数据不足)、依赖漏洞扫描(pip-audit/Dependabot)、免费档冷启动。
 
 ## 逐行自审发现并修复
 

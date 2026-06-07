@@ -17,6 +17,8 @@
 import os
 import secrets
 import sqlite3
+import time
+from collections import deque
 from contextlib import closing
 from datetime import datetime
 
@@ -50,6 +52,13 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "parent_check.db")
 
 # Cap on submitted text — prevents oversized requests and keeps the DB tidy.
 MAX_CONTENT = 5000
+
+# Basic in-memory rate limit for POSTs (a speed-bump against abuse). Note: this
+# is per-worker and resets on restart; a production deployment with multiple
+# workers should use a shared store (e.g. Redis) or platform-level rate limiting.
+RATE_LIMIT = 30  # max POSTs ...
+RATE_WINDOW = 60  # ... per this many seconds, per client
+_rate_hits = {}  # client ip -> deque of request timestamps
 
 # Content-source codes shown on the form (labels come from translations.py).
 SOURCE_CODES = ["health_article", "supplement_ad", "suspicious_msg", "other"]
@@ -105,6 +114,26 @@ def remember_language():
     lang = request.args.get("lang")
     if lang in TRANSLATIONS:
         session["lang"] = lang
+
+
+@app.before_request
+def rate_limit():
+    """Throttle POSTs per client IP to deter batch abuse of the service."""
+    if request.method != "POST":
+        return None
+    fwd = request.headers.get("X-Forwarded-For", request.remote_addr) or "?"
+    ip = fwd.split(",")[0].strip()
+    now = time.time()
+    if len(_rate_hits) > 5000:  # bound memory
+        _rate_hits.clear()
+    hits = _rate_hits.setdefault(ip, deque())
+    while hits and now - hits[0] > RATE_WINDOW:
+        hits.popleft()
+    if len(hits) >= RATE_LIMIT:
+        app.logger.warning("rate limit hit for %s", ip)
+        return "Too many requests, please slow down.", 429
+    hits.append(now)
+    return None
 
 
 @app.before_request
@@ -167,6 +196,14 @@ def check():
         )
         conn.commit()
         check_id = cur.lastrowid
+
+    # Observability: log the verdict only — never the text the user submitted.
+    app.logger.info(
+        "check verdict=%s category=%s source=%s",
+        result["risk"],
+        result["category"],
+        source,
+    )
 
     # Turn the stored codes into words in the current language.
     t = TRANSLATIONS[current_lang()]
