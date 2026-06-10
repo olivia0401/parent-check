@@ -23,8 +23,14 @@ TRANSLATIONS = {
         # home / index
         "home_title": "拿不准，先求证",
         "home_lead": "看到养生文章、保健品广告、可疑短信或奇怪链接，先别急。把文字内容复制粘贴到下面的框里，我帮你看看。",
-        "label_content": "把看到的内容写在这里：",
-        "placeholder": "例如：您的医保账户异常，请点击链接完成认证，需要输入身份证和验证码……",
+        "label_content": "把看到的内容写在这里（也可以直接粘贴链接）：",
+        "placeholder": "例如：您的医保账户异常，请点击链接完成认证……或者直接粘贴微信文章链接",
+        "url_fetching": "正在读取链接内容……",
+        "url_error_timeout": "链接加载超时，请直接复制文章文字粘贴到这里。",
+        "url_error_no_content": "无法从该链接提取正文，请直接复制文章文字粘贴到这里。",
+        "url_error_unsafe": "不支持该链接类型。",
+        "url_error_generic": "无法读取该链接，请直接复制文章文字粘贴到这里。",
+        "url_fetched_label": "已读取文章：",
         "label_source": "内容来源：",
         "submit": "开始求证",
         "safety_warning": "请不要输入银行卡号、验证码、密码或身份证信息。如果对方让你转账、提供验证码、下载 App、点链接，先联系家人或官方渠道。",
@@ -151,6 +157,15 @@ TRANSLATIONS = {
         "privacy_rights_title": "你的权利",
         "privacy_contact_title": "联系我们",
         "privacy_contact_text": "有任何关于数据的问题，请联系：seal80644748@outlook.com",
+        # AI analysis section on result page
+        "ai_heading": "AI 辅助分析",
+        "ai_reason_label": "判断原因：",
+        "ai_advice_label": "建议：",
+        "ai_badge": "AI",
+        "ai_disclaimer": "AI 分析仅供参考，不能保证 100% 准确。拿不准请直接致电家人确认。",
+        # emergency action
+        "emergency_heading": "立即行动",
+        "emergency_call_btn": "立即拨打 {number}",
     },
     # --------------------------------------------------------------- English
     "en": {
@@ -164,8 +179,14 @@ TRANSLATIONS = {
         # home / index
         "home_title": "Not sure? Check first",
         "home_lead": "Seen a health article, a supplement ad, a suspicious text or a strange link? Don't rush. Copy and paste the text into the box below and I'll take a look.",
-        "label_content": "Paste or describe what you saw:",
-        "placeholder": "e.g. Your account is suspended. Click this link to verify and enter your one-time code…",
+        "label_content": "Paste what you saw — or paste a link directly:",
+        "placeholder": "e.g. Your account is suspended. Click this link to verify… or paste a URL",
+        "url_fetching": "Reading the link…",
+        "url_error_timeout": "The link timed out. Please copy and paste the article text directly.",
+        "url_error_no_content": "Could not extract text from that link. Please copy and paste the article text directly.",
+        "url_error_unsafe": "That link type is not supported.",
+        "url_error_generic": "Could not read that link. Please copy and paste the article text directly.",
+        "url_fetched_label": "Article read:",
         "label_source": "What kind of thing is it?",
         "submit": "Check this for me",
         "safety_warning": "Do not enter bank card numbers, verification codes, passwords or ID details. If someone asks you to transfer money, share a code, download an app or click a link, contact your family or an official channel first.",
@@ -280,5 +301,14 @@ TRANSLATIONS = {
         "privacy_rights_title": "Your rights",
         "privacy_contact_title": "Contact",
         "privacy_contact_text": "For any question about your data, contact: seal80644748@outlook.com",
+        # AI analysis section on result page
+        "ai_heading": "AI Analysis",
+        "ai_reason_label": "Why:",
+        "ai_advice_label": "Advice:",
+        "ai_badge": "AI",
+        "ai_disclaimer": "AI analysis is for guidance only and may not be 100% accurate. When in doubt, call your family to confirm.",
+        # emergency action
+        "emergency_heading": "Take action now",
+        "emergency_call_btn": "Call {number} now",
     },
 }

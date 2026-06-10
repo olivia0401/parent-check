@@ -2,11 +2,35 @@
 {% from "_share.html" import share_and_call %}
 
 {% block main %}
+  {% if fetched_title %}
+    <p class="fetched-label">{{ t.url_fetched_label }} <em>{{ fetched_title }}</em></p>
+  {% endif %}
+
   <div class="risk-card {{ risk }}">
     <p class="risk-label">{{ t.result_label }}</p>
     <h1 class="risk-text">{{ t.risk[risk] }}</h1>
     <p class="summary">{{ summary }}</p>
   </div>
+
+  {# ---- AI analysis block (only shown when Gemini is active) ---- #}
+  {% if ai_reason %}
+    <section class="ai-block">
+      <h2>{{ t.ai_heading }} <span class="ai-badge">{{ t.ai_badge }}</span></h2>
+      <p><strong>{{ t.ai_reason_label }}</strong> {{ ai_reason }}</p>
+      {% if ai_advice %}<p><strong>{{ t.ai_advice_label }}</strong> {{ ai_advice }}</p>{% endif %}
+      <p class="ai-disclaimer">{{ t.ai_disclaimer }}</p>
+    </section>
+  {% endif %}
+
+  {# ---- Emergency action block (only shown on danger + AI active) ---- #}
+  {% if "emergency_call" in actions %}
+    <section class="emergency-block">
+      <h2>{{ t.emergency_heading }}</h2>
+      <a class="emergency-btn" href="tel:{{ emergency_number }}">
+        {{ t.emergency_call_btn.format(number=emergency_number) }}
+      </a>
+    </section>
+  {% endif %}
 
   {% if reasons %}
     <section>

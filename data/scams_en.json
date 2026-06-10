@@ -1,0 +1,74 @@
+[
+  {
+    "id": "en_001",
+    "text": "Hi Mum, it's me. I dropped my phone and this is my new number. I'm in trouble and need £500 urgently, can you send it to this account? Don't call the old number.",
+    "category": "grandparent_scam",
+    "analysis": "Impersonates a family member with a new number, requests urgent money and discourages verification — classic grandparent/family impersonation scam"
+  },
+  {
+    "id": "en_002",
+    "text": "HMRC: You owe £1,240 in unpaid tax. Failure to call 0800-XXX-XXXX within 24 hours will result in your arrest. Press 1 to speak to an officer.",
+    "category": "hmrc_tax_scam",
+    "analysis": "Impersonates HMRC using threats of arrest and urgent deadlines to pressure victims into calling a fraudulent number and paying fake tax debts"
+  },
+  {
+    "id": "en_003",
+    "text": "Your bank has detected suspicious activity on your account. Please call us immediately on 0800-XXX-XXXX to verify your identity and protect your funds.",
+    "category": "bank_fraud_call",
+    "analysis": "Impersonates a bank, creates urgency about account security to get victims to call a fake number and hand over account details or move money to a 'safe account'"
+  },
+  {
+    "id": "en_004",
+    "text": "Royal Mail: Your parcel is waiting. A customs fee of £2.99 is due before delivery. Pay here: [link] within 48 hours or your parcel will be returned.",
+    "category": "parcel_delivery_scam",
+    "analysis": "Impersonates Royal Mail or courier services, small fee request leads to a phishing page that steals card details"
+  },
+  {
+    "id": "en_005",
+    "text": "Congratulations! You have been selected for a £250,000 prize. To claim, please call our claims line and pay a small processing fee of £49.99.",
+    "category": "lottery_prize_scam",
+    "analysis": "Fake lottery win requiring an upfront fee — once paid, further fees are demanded and no prize exists"
+  },
+  {
+    "id": "en_006",
+    "text": "URGENT: Your Windows computer has a virus. Call Microsoft Support on 0800-XXX-XXXX immediately to prevent your files and banking details from being stolen.",
+    "category": "tech_support_scam",
+    "analysis": "Impersonates Microsoft or tech support, aims to get remote access to the victim's computer to steal banking credentials or demand payment for fake repairs"
+  },
+  {
+    "id": "en_007",
+    "text": "NHS: Your free annual health check is overdue. Click here to book, and confirm your NHS number and date of birth to complete your registration.",
+    "category": "nhs_impersonation",
+    "analysis": "Impersonates NHS to collect personal details (NHS number, date of birth) used for identity theft or further scams"
+  },
+  {
+    "id": "en_008",
+    "text": "I'm an engineer working overseas. I came across your profile and would love to connect. I also have an investment opportunity with guaranteed 20% returns.",
+    "category": "romance_investment_scam",
+    "analysis": "Builds a fake romantic relationship before introducing a fraudulent investment platform — victims lose large sums before realising the platform is fake"
+  },
+  {
+    "id": "en_009",
+    "text": "You may be entitled to a council tax refund of £312. Complete your claim at this link within 7 days. You'll need your bank sort code and account number.",
+    "category": "council_tax_refund_scam",
+    "analysis": "Fake government refund offer used to harvest bank account details for fraud"
+  },
+  {
+    "id": "en_010",
+    "text": "Hi, it's your daughter. I'm using a friend's phone. I've been in an accident abroad and need £1,000 wired urgently. Please don't worry Mum, just send it.",
+    "category": "grandparent_scam",
+    "analysis": "Urgent family emergency story told from an unknown number to prevent verification — a variation of the grandparent scam targeting parents of adult children"
+  },
+  {
+    "id": "en_011",
+    "text": "Your pension can be accessed early, tax-free. Our advisers have helped hundreds unlock their pension before 55. Call now for a free consultation.",
+    "category": "pension_liberation_scam",
+    "analysis": "Pension liberation fraud — promises early, tax-free pension access which is illegal; victims face large tax penalties and lose their pension savings"
+  },
+  {
+    "id": "en_012",
+    "text": "This natural supplement can reverse type 2 diabetes, lower blood pressure and cholesterol without medication. Thousands of doctors recommend it secretly.",
+    "category": "health_supplement_scam",
+    "analysis": "False health claims targeting people with chronic conditions, the phrase 'doctors recommend it secretly' is a common manipulation tactic"
+  }
+]

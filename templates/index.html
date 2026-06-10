@@ -7,6 +7,10 @@
   <!-- safety warning: most important thing to see before typing anything -->
   <div class="safety">{{ t.safety_warning }}</div>
 
+  {% if url_error %}
+    <p class="url-error">{{ url_error }}</p>
+  {% endif %}
+
   <form action="{{ url_for('check') }}" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
     <label for="content">{{ t.label_content }}</label>
@@ -17,7 +21,7 @@
       maxlength="5000"
       placeholder="{{ t.placeholder }}"
       required
-    ></textarea>
+    >{{ prefill or "" }}</textarea>
 
     <label for="source">{{ t.label_source }}</label>
     <select id="source" name="source">

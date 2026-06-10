@@ -24,6 +24,7 @@ from datetime import datetime
 
 from flask import Flask, redirect, render_template, request, session, url_for
 
+from fetch_url import fetch_article, is_url
 from helpers import analyze_content, build_view
 from regions import current_region, current_region_code
 from translations import TRANSLATIONS
@@ -85,6 +86,37 @@ def init_db():
 # production: Render runs the app with gunicorn, which never executes the
 # __main__ block below, so we cannot rely on that to create the database.
 init_db()
+
+# Optional AI step (Gemini). If GEMINI_API_KEY isn't set, these stay None
+# and the app just runs on the rule-based checks like before.
+_llm = None
+_rag_zh = None
+_rag_en = None
+
+
+def _init_ai():
+    """Set up the Gemini client and the zh/en knowledge bases."""
+    global _llm, _rag_zh, _rag_en
+    try:
+        from ai.llm_client import LLMClient
+        from ai.rag_engine import ScamRAGEngine
+
+        _llm = LLMClient()
+        if not _llm.available:
+            return  # no API key set, AI step stays off
+
+        data_dir = os.path.dirname(__file__)
+        _rag_zh = ScamRAGEngine(DB_PATH, _llm, "zh")
+        _rag_en = ScamRAGEngine(DB_PATH, _llm, "en")
+
+        # Load the starter scam examples (only happens once, table stays empty after that)
+        _rag_zh.seed_if_empty(os.path.join(data_dir, "data", "scams_zh.json"))
+        _rag_en.seed_if_empty(os.path.join(data_dir, "data", "scams_en.json"))
+    except Exception as e:
+        app.logger.warning("AI init failed (continuing without AI): %s", e)
+
+
+_init_ai()
 
 
 def current_lang():
@@ -175,7 +207,41 @@ def check():
     if not content:
         return redirect(url_for("index"))
 
+    # If the user pasted a URL, fetch the article text first.
+    fetched_title = ""
+    if is_url(content):
+        t_lang = TRANSLATIONS[current_lang()]
+        fetch = fetch_article(content)
+        if fetch["ok"]:
+            fetched_title = fetch.get("title", "")
+            content = fetch["text"]
+        else:
+            error_key = {
+                "timeout":    "url_error_timeout",
+                "no_content": "url_error_no_content",
+                "unsafe_url": "url_error_unsafe",
+            }.get(fetch["error"], "url_error_generic")
+            return render_template(
+                "index.html",
+                sources=SOURCE_CODES,
+                url_error=t_lang[error_key],
+                prefill=request.form.get("content", ""),
+            )
+
     result = analyze_content(content, source)
+
+    # Let Gemini take a second look (if it's set up). If it's not available
+    # or something goes wrong, ai_result stays None and nothing changes.
+    lang = current_lang()
+    ai_result = None
+    if _llm and _llm.available:
+        from ai import agent as ai_agent
+        rag = _rag_zh if lang == "zh" else _rag_en
+        ai_result = ai_agent.analyze(content, lang, result["risk"], _llm, rag)
+
+    if ai_result:
+        # the AI step can only raise the risk level, never lower it
+        result["risk"] = ai_result["ai_risk"]
 
     # Save this check to the database (Week 7: INSERT with parameters).
     # Data minimisation: we store the verdict, category, matched signals and time
@@ -199,14 +265,15 @@ def check():
 
     # Observability: log the verdict only — never the text the user submitted.
     app.logger.info(
-        "check verdict=%s category=%s source=%s",
+        "check verdict=%s category=%s source=%s ai=%s",
         result["risk"],
         result["category"],
         source,
+        "yes" if ai_result else "no",
     )
 
     # Turn the stored codes into words in the current language.
-    t = TRANSLATIONS[current_lang()]
+    t = TRANSLATIONS[lang]
     view = build_view(t, result["risk"], result["category"], result["reasons"], source)
 
     return render_template(
@@ -219,6 +286,11 @@ def check():
         summary=view["summary"],
         advice=view["advice"],
         child_message=view["child_message"],
+        ai_reason=ai_result["reason"] if ai_result else "",
+        ai_advice=ai_result["advice"] if ai_result else "",
+        actions=ai_result["actions"] if ai_result else [],
+        emergency_number=current_region()["hotline"],
+        fetched_title=fetched_title,
     )
 
 

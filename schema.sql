@@ -22,3 +22,15 @@ CREATE TABLE IF NOT EXISTS checks (
 
 -- History is always queried by user_token, so index it.
 CREATE INDEX IF NOT EXISTS idx_checks_user ON checks(user_token);
+
+-- Scam case knowledge base for RAG.  Embeddings are stored as JSON float arrays.
+CREATE TABLE IF NOT EXISTS scam_cases (
+    id         TEXT PRIMARY KEY,
+    lang       TEXT NOT NULL,       -- "zh" or "en"
+    text       TEXT NOT NULL,       -- the scam message text
+    category   TEXT NOT NULL,       -- scam type label
+    analysis   TEXT NOT NULL,       -- plain-language explanation
+    embedding  TEXT NOT NULL,       -- JSON array of floats (Gemini text-embedding-004)
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cases_lang ON scam_cases(lang);

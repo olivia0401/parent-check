@@ -527,6 +527,94 @@ footer {
   text-align: center;
 }
 
+/* ------------------------------------------------------- AI analysis block */
+.ai-block {
+  background: #f0f4ff;
+  border: 1px solid #c7d7f5;
+  border-radius: var(--radius);
+  padding: 20px 24px;
+}
+
+.ai-block h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 0;
+}
+
+.ai-disclaimer {
+  font-size: 14px;
+  color: var(--ink-soft);
+  margin: 10px 0 0;
+  font-style: italic;
+}
+
+.ai-badge {
+  display: inline-block;
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 6px;
+  vertical-align: middle;
+}
+
+/* ---------------------------------------------------- emergency action block */
+.emergency-block {
+  background: #fff3f3;
+  border: 2px solid #e53e3e;
+  border-radius: var(--radius);
+  padding: 20px 24px;
+}
+
+.emergency-block h2 {
+  color: #c53030;
+  margin-top: 0;
+}
+
+.emergency-btn {
+  display: block;
+  width: 100%;
+  padding: 18px 24px;
+  background: #e53e3e;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  border-radius: 12px;
+  margin-bottom: 14px;
+  transition: background 0.15s;
+}
+
+.emergency-btn:hover {
+  background: #c53030;
+}
+
+/* ----------------------------------------------------------- URL fetch */
+.url-error {
+  background: #fff3cd;
+  border: 1px solid #f0c36d;
+  border-radius: 10px;
+  padding: 12px 18px;
+  color: #7a4f00;
+  font-size: 17px;
+}
+
+.fetched-label {
+  font-size: 15px;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+
+.fetched-label em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--ink);
+}
+
 /* -------------------------------------------------------- small screens */
 @media (max-width: 480px) {
   body {
