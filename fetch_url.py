@@ -6,7 +6,9 @@ If anything goes wrong (bad url, timeout, blocked address, etc.) this
 returns {"ok": False, "error": "..."} instead of raising, so the route
 in app.py can just show a friendly message.
 """
+import ipaddress
 import re
+import socket
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -46,14 +48,59 @@ def is_url(text):
     return bool(re.match(r"^https?://\S+", text.strip(), re.IGNORECASE))
 
 
-def is_safe_url(url):
-    """Make sure the link isn't pointing at a local/internal address."""
+def _ip_is_internal(ip_str):
+    """True if an IP literal points somewhere we must never fetch."""
     try:
-        host = urlparse(url.strip()).hostname or ""
-        host = host.lower()
+        ip = ipaddress.ip_address(ip_str)
+    except ValueError:
+        return False
+    # IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1) hides a v4 address - unwrap it.
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return (
+        ip.is_private or ip.is_loopback or ip.is_link_local
+        or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+    )
+
+
+def is_safe_url(url):
+    """
+    Make sure the link isn't pointing at a local/internal address.
+
+    Two layers, because a cheap string check alone is bypassable:
+      1. Reject obviously-internal hostnames by prefix (fast, no network).
+      2. Actually resolve the host and reject if ANY resolved IP is internal.
+         This closes the hole where an attacker owns a public domain that
+         resolves to 127.0.0.1 / 10.x / 169.254.169.254 (cloud metadata) etc,
+         or hides the address as a decimal/hex/IPv4-mapped-IPv6 literal.
+    """
+    try:
+        parsed = urlparse(url.strip())
+        if parsed.scheme not in ("http", "https"):
+            return False
+
+        host = (parsed.hostname or "").lower()
+        if not host:
+            return False
+
+        # Layer 1: cheap prefix blocklist (covers the common cases without DNS).
         for blocked in BLOCKED_HOSTS:
             if host == blocked.rstrip(".") or host.startswith(blocked):
                 return False
+
+        # Layer 2: if the host is already an IP literal, check it directly...
+        if _ip_is_internal(host):
+            return False
+
+        # ...otherwise resolve it and reject if any answer is internal.
+        try:
+            infos = socket.getaddrinfo(host, None)
+        except socket.gaierror:
+            return False  # can't resolve -> can't safely fetch
+        for info in infos:
+            if _ip_is_internal(info[4][0]):
+                return False
+
         return True
     except Exception:
         return False
