@@ -1,0 +1,16 @@
+# Keep the image small and clean — none of this belongs in the container.
+.git
+.github
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+parent_check.db
+tests/
+update.patch
+prompt test/
+.env
+DEPLOY.md
+OUTREACH.md
+outreach/
