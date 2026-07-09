@@ -1,13 +1,8 @@
-# keywords.py
-# The keyword library that powers the risk judgement.
-# Kept in its own file so the rules are easy to read, explain, and extend.
-#
-# Bilingual on purpose: the target users are Chinese-speaking elderly living in
-# the UK, who receive BOTH Chinese health/supplement rumours AND English-language
-# UK scam texts (Royal Mail, HMRC, bank impersonation, "Hi Mum" on WhatsApp).
+# Keyword lists used by helpers.analyze_content(). Bilingual since our users
+# get both Chinese health rumours and English UK scam texts (Royal Mail, HMRC,
+# bank impersonation, "Hi Mum" on WhatsApp...).
 
-# --- CRITICAL terms: identity / money / medication. Heaviest weight (+3) ---
-# If any of these appear, the content is treated as very likely a problem.
+# identity / money / medication - heaviest weight (+3 each)
 CRITICAL = [
     # Chinese
     "转账",
@@ -28,7 +23,7 @@ CRITICAL = [
     "bank details",
 ]
 
-# --- SCAM terms: classic fraud signals. Medium-heavy weight (+2) ---
+# classic fraud signals - medium weight (+2 each)
 SCAM = [
     # Chinese — links / accounts / refunds
     "下载app",
@@ -111,7 +106,7 @@ SCAM = [
     "double your money",
 ]
 
-# --- HEALTH terms: supplement / wellness exaggeration. Light weight (+1) ---
+# supplement / wellness exaggeration - light weight (+1 each)
 HEALTH = [
     "包治百病",
     "根治",
@@ -154,7 +149,7 @@ HEALTH = [
     "superfood",
 ]
 
-# --- BENIGN terms: ordinary hobbies. Used only to reassure, never to flag ---
+# ordinary hobbies - not scored, just here for reference/testing
 BENIGN = [
     "养花",
     "做菜",

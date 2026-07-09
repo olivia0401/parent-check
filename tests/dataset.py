@@ -1,16 +1,15 @@
-# tests/dataset.py
-# Hand-labelled evaluation set: real-style scam texts, health rumours and benign
-# messages, in Chinese and English. `expected` is the IDEAL verdict; `kind` lets
-# the evaluator report per-category recall.
+# Hand-labelled set for evaluate.py: real-style scam texts, health rumours and
+# benign messages, in Chinese and English. `expected` is the verdict it should
+# get; `kind` lets the evaluator report recall per category.
 #
-# Cases are written to look realistic, NOT to mirror the keyword lists word for
-# word. A few hard cases (keyword-free impersonation, benign messages that happen
-# to mention a trigger word like 身份证/验证码) are included on purpose to expose
-# the true limits of a rule-based system.
+# Written to look realistic rather than to match the keyword lists word for
+# word - a few hard cases (keyword-free impersonation, benign messages that
+# happen to mention 身份证/验证码) are in here on purpose to show where a
+# rule-based system actually struggles.
 
 CASES = [
-    # ===================== SCAMS (expected: danger) =====================
-    # -- Chinese: links / accounts / refunds --
+    # scams (expected: danger)
+    # Chinese: links / accounts / refunds
     {
         "kind": "scam",
         "source": "suspicious_msg",
@@ -59,7 +58,7 @@ CASES = [
         "expected": "danger",
         "text": "我是淘宝客服，您的商品有质量问题给您理赔，请加微信办理退款。",
     },
-    # -- Chinese: fake authority (公检法) --
+    # Chinese: fake authority (公检法)
     {
         "kind": "scam",
         "source": "suspicious_msg",
@@ -72,7 +71,7 @@ CASES = [
         "expected": "danger",
         "text": "我是法院的，您有一张逮捕令，需立即缴纳保证金到指定账户。",
     },
-    # -- Chinese: investment / job (刷单) --
+    # Chinese: investment / job scams (刷单)
     {
         "kind": "scam",
         "source": "suspicious_msg",
@@ -97,14 +96,14 @@ CASES = [
         "expected": "danger",
         "text": "您的账户存在安全风险，请下载这个APP开启屏幕共享配合操作。",
     },
-    # -- Chinese: impersonation (keyword-free, needs semantic layer) --
+    # Chinese: impersonation (keyword-free, needs the semantic layer)
     {
         "kind": "scam",
         "source": "suspicious_msg",
         "expected": "danger",
         "text": "妈，我手机摔坏了换了新号码，这是我的新号。我急用，你先帮我打一点过来。",
     },
-    # -- English: UK smishing --
+    # English: UK smishing
     {
         "kind": "scam",
         "source": "suspicious_msg",
@@ -189,7 +188,7 @@ CASES = [
         "expected": "danger",
         "text": "Amazon: your account is locked. Verify here http://amaz0n-verify.top with your password.",
     },
-    # -- English: impersonation (semantic) --
+    # English: impersonation (semantic)
     {
         "kind": "scam",
         "source": "suspicious_msg",
@@ -202,7 +201,7 @@ CASES = [
         "expected": "danger",
         "text": "Grandma, it's me, I lost my phone and I'm on a friend's number. I urgently need you to transfer some money.",
     },
-    # ===================== HEALTH (expected: caution / danger) =====================
+    # health (expected: caution / danger)
     {
         "kind": "health",
         "source": "supplement_ad",
@@ -275,7 +274,7 @@ CASES = [
         "expected": "caution",
         "text": "抗癌神药，限时优惠，买三送三。",
     },
-    # ===================== BENIGN (expected: ok) =====================
+    # benign (expected: ok)
     {
         "kind": "benign",
         "source": "other",

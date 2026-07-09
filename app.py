@@ -1,18 +1,9 @@
-# app.py
-# Flask web application for "爸妈求证" (Parent Check).
-# CS50x final project. Covers Week 6 (Python), 7 (SQL), 8 (HTML/CSS), 9 (Flask).
+# Flask app for 爸妈求证 (Parent Check) - CS50x final project.
 #
-# Bilingual (Chinese / English): the chosen language is kept in the session and
-# can be switched with ?lang=zh / ?lang=en. All wording lives in translations.py;
-# the database only stores language-neutral codes.
-#
-# Routes:
-#   GET  /              home + input form
-#   POST /check         analyze the submitted text, save it, show the result
-#   GET  /history       list of past checks
-#   GET  /history/<id>  detail of one past check
-#   POST /feedback/<id> record whether a past check was helpful
-#   GET  /about         scope / disclaimer page
+# Language is kept in the session and switched with ?lang=zh / ?lang=en. All
+# the actual wording lives in translations.py - the DB only ever stores
+# language-neutral codes, so old history entries still render correctly if you
+# switch language later.
 
 import os
 import secrets
@@ -30,9 +21,8 @@ from regions import current_region, current_region_code
 from translations import TRANSLATIONS
 
 app = Flask(__name__)
-# The secret key must come from the environment in production. We only fall back
-# to a fixed dev key locally; on Render (which sets the RENDER env var) a missing
-# key is a hard error rather than a silent, forgeable default.
+# In production (Render sets RENDER) a missing SECRET_KEY is a hard error -
+# locally we just fall back to a dev key.
 _secret = os.environ.get("SECRET_KEY")
 if not _secret:
     if os.environ.get("RENDER"):
@@ -40,28 +30,25 @@ if not _secret:
     _secret = "dev-only-key-not-for-production"
 app.secret_key = _secret
 
-# Session-cookie hardening. SameSite=Lax also mitigates CSRF on our POST forms
-# (the cookie isn't sent on cross-site POSTs). Secure is enabled in production
-# (HTTPS); local dev over http has no SECRET_KEY set, so it stays off there.
+# SameSite=Lax also helps with CSRF (cookie isn't sent on cross-site POSTs).
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=bool(os.environ.get("RENDER")),  # HTTPS in production
+    SESSION_COOKIE_SECURE=bool(os.environ.get("RENDER")),
 )
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "parent_check.db")
 
-# Cap on submitted text — prevents oversized requests and keeps the DB tidy.
-MAX_CONTENT = 5000
+MAX_CONTENT = 5000  # cap on submitted text length
 
-# Basic in-memory rate limit for POSTs (a speed-bump against abuse). Note: this
-# is per-worker and resets on restart; a production deployment with multiple
-# workers should use a shared store (e.g. Redis) or platform-level rate limiting.
-RATE_LIMIT = 30  # max POSTs ...
-RATE_WINDOW = 60  # ... per this many seconds, per client
-_rate_hits = {}  # client ip -> deque of request timestamps
+# Crude in-memory rate limit per IP. Resets on restart and only works per
+# worker - good enough for one gunicorn worker, not for a real multi-worker
+# setup (would need Redis or a proxy-level limiter).
+RATE_LIMIT = 30
+RATE_WINDOW = 60
+_rate_hits = {}  # ip -> deque of timestamps
 
-# Content-source codes shown on the form (labels come from translations.py).
+# source options shown on the home page form (labels live in translations.py)
 SOURCE_CODES = ["health_article", "supplement_ad", "suspicious_msg", "other"]
 
 
@@ -82,20 +69,18 @@ def init_db():
         conn.commit()
 
 
-# Make sure the table exists as soon as the module is imported. This matters in
-# production: Render runs the app with gunicorn, which never executes the
-# __main__ block below, so we cannot rely on that to create the database.
+# Run on import, not just __main__ - gunicorn never executes the block below.
 init_db()
 
-# Optional AI step (Gemini). If GEMINI_API_KEY isn't set, these stay None
-# and the app just runs on the rule-based checks like before.
+# Optional Gemini step. Stays off (None) unless GEMINI_API_KEY is set, in which
+# case the app just runs on the rule-based checks like before.
 _llm = None
 _rag_zh = None
 _rag_en = None
 
 
 def _init_ai():
-    """Set up the Gemini client and the zh/en knowledge bases."""
+    """Set up the Gemini client and the zh/en knowledge bases, if configured."""
     global _llm, _rag_zh, _rag_en
     try:
         from ai.llm_client import LLMClient
@@ -103,13 +88,13 @@ def _init_ai():
 
         _llm = LLMClient()
         if not _llm.available:
-            return  # no API key set, AI step stays off
+            return
 
         data_dir = os.path.dirname(__file__)
         _rag_zh = ScamRAGEngine(DB_PATH, _llm, "zh")
         _rag_en = ScamRAGEngine(DB_PATH, _llm, "en")
 
-        # Load the starter scam examples (only happens once, table stays empty after that)
+        # only does anything the first time - table stays populated after
         _rag_zh.seed_if_empty(os.path.join(data_dir, "data", "scams_zh.json"))
         _rag_en.seed_if_empty(os.path.join(data_dir, "data", "scams_en.json"))
     except Exception as e:
@@ -125,8 +110,8 @@ def current_lang():
 
 
 def current_uid():
-    """An anonymous per-browser id (kept in the signed session cookie) so each
-    visitor only ever sees their own history. No name or account is involved."""
+    """Random per-browser id stored in the session cookie, so each visitor
+    only ever sees their own history. No accounts, no names."""
     if "uid" not in session:
         session.permanent = True
         session["uid"] = secrets.token_hex(16)
@@ -230,8 +215,8 @@ def check():
 
     result = analyze_content(content, source)
 
-    # Let Gemini take a second look (if it's set up). If it's not available
-    # or something goes wrong, ai_result stays None and nothing changes.
+    # Optional second opinion from Gemini. Stays None if it's not configured
+    # or anything goes wrong - the rule-based result is used as-is then.
     lang = current_lang()
     ai_result = None
     if _llm and _llm.available:
@@ -240,12 +225,11 @@ def check():
         ai_result = ai_agent.analyze(content, lang, result["risk"], _llm, rag)
 
     if ai_result:
-        # the AI step can only raise the risk level, never lower it
+        # can only push the risk level up, never down
         result["risk"] = ai_result["ai_risk"]
 
-    # Save this check to the database (Week 7: INSERT with parameters).
-    # Data minimisation: we store the verdict, category, matched signals and time
-    # — but NOT the original text the user pasted, which may contain personal data.
+    # Store the verdict/category/matched signals, but not the original text -
+    # it might contain personal info the user pasted in.
     with closing(get_db()) as conn:
         cur = conn.execute(
             """INSERT INTO checks
@@ -263,7 +247,7 @@ def check():
         conn.commit()
         check_id = cur.lastrowid
 
-    # Observability: log the verdict only — never the text the user submitted.
+    # log the verdict for debugging, never the text someone submitted
     app.logger.info(
         "check verdict=%s category=%s source=%s ai=%s",
         result["risk"],
@@ -272,7 +256,6 @@ def check():
         "yes" if ai_result else "no",
     )
 
-    # Turn the stored codes into words in the current language.
     t = TRANSLATIONS[lang]
     view = build_view(t, result["risk"], result["category"], result["reasons"], source)
 
@@ -332,7 +315,7 @@ def detail(check_id):
 
 @app.route("/history/clear", methods=["POST"])
 def clear_history():
-    """Delete this browser's history from the server (the user's right to erase)."""
+    """Delete this browser's saved history from the server."""
     with closing(get_db()) as conn:
         conn.execute("DELETE FROM checks WHERE user_token = ?", (current_uid(),))
         conn.commit()
@@ -341,7 +324,7 @@ def clear_history():
 
 @app.route("/feedback/<int:check_id>", methods=["POST"])
 def feedback(check_id):
-    """Record whether a past check was helpful (a small learning loop)."""
+    """Record whether a past check was helpful."""
     value = 1 if request.form.get("helpful") == "yes" else 0
     with closing(get_db()) as conn:
         conn.execute(

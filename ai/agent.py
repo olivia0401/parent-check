@@ -13,9 +13,12 @@ rule-based checks already found, never down. And if anything goes wrong
 (no API key, network error, bad reply, etc.) we just skip this step and
 keep the rule-based result as-is.
 """
+import logging
 import re
 
 from .tools import TOOL_DECLARATIONS, run_tools_parallel
+
+logger = logging.getLogger(__name__)
 
 
 # What we tell Gemini before showing it the user's message.
@@ -190,9 +193,15 @@ def analyze(content, lang, existing_risk, llm, rag):
             })
 
         # Used both turns without getting a final answer - skip the AI step
+        logger.warning("AI step gave no final verdict in 2 turns; keeping rule-based result")
         return None
 
     except Exception:
+        # Fail safe: keep the rule-based floor. But make the failure visible —
+        # a silently disabled agent is an observability blind spot. We log the
+        # error type (never the user's message text) so this shows up in
+        # monitoring instead of vanishing.
+        logger.warning("AI step failed (keeping rule-based result)", exc_info=True)
         return None
 
 

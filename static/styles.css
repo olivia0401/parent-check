@@ -1,6 +1,5 @@
-/* styles.css — calm, trustworthy design for elderly users.
-   Principles kept throughout: large fonts, big tap targets, high contrast.
-   Three risk colours: neutral blue-grey (low), amber (caution), red (danger). */
+/* big fonts, big tap targets, high contrast for elderly users.
+   risk colours: neutral blue-grey (low), amber (caution), red (danger) */
 
 :root {
   --bg: #eef2f6;
@@ -35,7 +34,7 @@ body {
   min-height: 100vh;
 }
 
-/* ---------------------------------------------------------------- header */
+/* header */
 header {
   position: sticky;
   top: 0;
@@ -93,7 +92,7 @@ nav a.lang {
   color: var(--primary);
 }
 
-/* ----------------------------------------------------------------- main */
+/* main */
 main {
   max-width: 660px;
   margin: 0 auto;
@@ -145,7 +144,7 @@ section h2 {
   margin-top: 0;
 }
 
-/* ------------------------------------------------------------- safety box */
+/* safety box */
 .safety {
   margin: 20px 0;
   padding: 16px 18px;
@@ -164,7 +163,7 @@ section h2 {
   color: var(--ink-soft);
 }
 
-/* ----------------------------------------------------------------- form */
+/* form */
 form {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -243,7 +242,7 @@ select {
   box-shadow: 0 4px 12px rgba(31, 111, 235, 0.28);
 }
 
-/* ------------------------------------------------------------- examples */
+/* examples */
 .examples {
   background: transparent;
   border: none;
@@ -273,7 +272,7 @@ select {
   transform: translateY(-1px);
 }
 
-/* ------------------------------------------------------------ risk card */
+/* risk card */
 .risk-card {
   position: relative;
   border-radius: var(--radius);
@@ -332,7 +331,7 @@ select {
   font-size: 21px;
 }
 
-/* --------------------------------------------------------------- lists */
+/* lists */
 .reasons {
   list-style: none;
   padding: 0;
@@ -372,7 +371,7 @@ select {
   white-space: pre-line;
 }
 
-/* ------------------------------------------------------------- actions */
+/* actions */
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -407,7 +406,7 @@ select {
   gap: 12px;
 }
 
-/* ----------------------------------------------------------- call / share */
+/* call / share */
 .family-set {
   display: flex;
   flex-wrap: wrap;
@@ -461,7 +460,7 @@ select {
   color: var(--ink-soft);
 }
 
-/* ------------------------------------------------------------- history */
+/* history */
 .history {
   list-style: none;
   padding: 0;
@@ -517,7 +516,7 @@ select {
   background: #b5301f;
 }
 
-/* -------------------------------------------------------------- footer */
+/* footer */
 footer {
   max-width: 660px;
   margin: 0 auto;
@@ -527,7 +526,7 @@ footer {
   text-align: center;
 }
 
-/* ------------------------------------------------------- AI analysis block */
+/* AI analysis block */
 .ai-block {
   background: #f0f4ff;
   border: 1px solid #c7d7f5;
@@ -561,7 +560,7 @@ footer {
   vertical-align: middle;
 }
 
-/* ---------------------------------------------------- emergency action block */
+/* emergency action block */
 .emergency-block {
   background: #fff3f3;
   border: 2px solid #e53e3e;
@@ -593,7 +592,7 @@ footer {
   background: #c53030;
 }
 
-/* ----------------------------------------------------------- URL fetch */
+/* URL fetch */
 .url-error {
   background: #fff3cd;
   border: 1px solid #f0c36d;
@@ -615,7 +614,7 @@ footer {
   color: var(--ink);
 }
 
-/* -------------------------------------------------------- small screens */
+/* small screens */
 @media (max-width: 480px) {
   body {
     font-size: 19px;

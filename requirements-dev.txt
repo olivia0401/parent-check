@@ -1,5 +1,4 @@
-# Dev tools — style, linting and tests (CS50 "style" + "correctness").
-# Not needed to run the app.
+# dev tools - not needed to run the app, just lint/format/tests
 #   ruff check . --fix    # lint + auto-fix
 #   black .               # format
 #   pytest -q             # run tests

@@ -1,14 +1,9 @@
-# train_model.py
-# Train a small scam classifier and save it. Run:  python train_model.py
-# Requires the ML extras:  pip install -r requirements-ml.txt
+# Trains the optional scam classifier (model/scam_model.joblib).
+# Usage: python train_model.py  (needs requirements-ml.txt)
 #
-# Why this design:
-#   - Character n-grams (analyzer="char_wb") work for BOTH Chinese and English
-#     without any word segmentation — important for a bilingual product.
-#   - Logistic regression is small, fast, and gives a probability we can
-#     threshold. The whole model serialises to a tiny file.
-#   - We report cross-validated scores (not training-set scores), so the number
-#     reflects generalisation, not memorisation.
+# Char n-grams work for Chinese and English without word segmentation, and
+# logistic regression keeps the saved model tiny. Scores below are cross-
+# validated, not training-set, so they're a fair estimate of generalisation.
 
 import os
 
@@ -41,14 +36,12 @@ def main():
 
     pipe = build_pipeline()
 
-    # 5-fold cross-validation = an honest estimate of out-of-sample performance.
     scores = cross_val_score(pipe, texts, labels, cv=5, scoring="f1")
     print(
         f"Training examples: {len(TRAIN)} ({sum(labels)} scam / {len(labels) - sum(labels)} not)"
     )
     print(f"5-fold cross-validated F1: {scores.mean():.2f} (+/- {scores.std():.2f})")
 
-    # Fit on everything and save.
     pipe.fit(texts, labels)
     joblib.dump(pipe, MODEL_PATH)
     print(f"Saved model -> {MODEL_PATH}")

@@ -1,12 +1,11 @@
-// app.js — sharing the "message for family" and saving a family phone number.
-// Used by both the result page and the history-detail page.
+// Sharing the "message for family" + saving a family contact, used on both
+// the result page and history detail.
 
 function getMessage() {
   var el = document.getElementById("child-message");
   return el ? el.value : "";
 }
 
-// Copy the family message to the clipboard.
 function copyMessage() {
   var el = document.getElementById("child-message");
   if (!el) return;
@@ -15,8 +14,7 @@ function copyMessage() {
   alert(el.dataset.copied || "Copied");
 }
 
-// One-tap forward: use the phone's native share sheet (WhatsApp, WeChat, SMS…).
-// Falls back to copying on browsers without the Web Share API (most desktops).
+// native share sheet where available, otherwise just copy
 function shareMessage() {
   var text = getMessage();
   if (navigator.share) {
@@ -26,20 +24,18 @@ function shareMessage() {
   }
 }
 
-// Open WhatsApp directly with the message pre-filled (very common in the UK).
 function whatsappShare() {
   var text = encodeURIComponent(getMessage());
   window.open("https://wa.me/?text=" + text, "_blank");
 }
 
-// WeChat has no web API to send a message to a contact, so the realistic flow is:
-// copy the text, open WeChat, then paste it to the family member.
+// no web API to send directly into a WeChat chat, so copy + open the app
 function openWeChat() {
   copyMessage();
   window.location.href = "weixin://";
 }
 
-// --- family phone number, stored only in this browser (no server) ---
+// family phone number - stored in localStorage only, never sent anywhere
 
 function saveFamily() {
   var inp = document.getElementById("family-number");
@@ -76,8 +72,7 @@ function renderFamily() {
   }
 }
 
-// --- family WeChat ID, stored only in this browser (no server) ---
-// WeChat IDs are not dialable, so this is a reminder you can copy into WeChat.
+// family WeChat ID - not dialable, just a reminder you can copy into WeChat
 
 function saveWeixin() {
   var inp = document.getElementById("weixin-id");

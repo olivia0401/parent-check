@@ -1,11 +1,7 @@
-# blocklist.py
-# Deterministic, explainable checks on the links and phone numbers inside a
-# message. This is the "threat intelligence" floor: high precision, no model,
-# and every hit can be explained by pointing at the exact link or number.
-#
-# In a real product the lists below would be fed by live threat-intelligence
-# feeds (known scam domains, reported numbers). Here they are small samples plus
-# structural heuristics that catch the most common scam-link shapes.
+# Checks links and phone numbers in a message against known scam patterns.
+# High precision, no model needed - every hit points at an exact link/number.
+# The lists below are small samples; a real product would feed these from a
+# live threat-intel source instead.
 
 import re
 

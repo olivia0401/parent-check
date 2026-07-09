@@ -140,8 +140,8 @@ TRANSLATIONS = {
         "about_can_text": "当你看到养生文章、保健品广告或可疑短信时，把内容写进来，它会用保守的方式判断风险（看起来还好 / 要小心 / 很可能有问题），指出可疑的地方，并生成一段可以发给家人确认的话。",
         "about_cannot_title": "它不能做什么",
         "about_cannot_text": "这个应用不能代替医生、警察、银行或家人。它不会告诉你某件事一定“安全”，因为真实世界里没有人能保证这一点。它只是帮你在做决定前多停一秒，用更谨慎的方式判断，并鼓励你向家人或专业人士确认。",
-        "about_why_title": "为什么用规则，而不是 AI",
-        "about_why_text": "在涉及钱和健康的高风险场景里，“能解释清楚为什么”比“看起来聪明”更重要。规则判断稳定、可预测，而且每一次都能明确告诉你它为什么这么判断。",
+        "about_why_title": "AI 与规则如何配合",
+        "about_why_text": "在涉及钱和健康的高风险场景里，判断必须“只会更谨慎，不会更放松”。所以底层是一套稳定、可解释的规则，先定下风险下限；AI 再做第二次复核，但只能把风险调高，不能调低。这样既有 AI 的敏锐，又始终能告诉你它为什么这么判断。",
         # privacy policy
         "nav_privacy": "隐私",
         "privacy_title": "隐私说明",
@@ -284,8 +284,8 @@ TRANSLATIONS = {
         "about_can_text": "When you see a health article, a supplement ad or a suspicious message, write it in. It judges the risk conservatively (Looks okay / Be careful / Very likely a problem), points out what looked suspicious, and writes a short message you can send to your family to confirm.",
         "about_cannot_title": "What it can't do",
         "about_cannot_text": "This app can't replace a doctor, the police, your bank or your family. It will never tell you that something is definitely 'safe', because no one in the real world can guarantee that. It just helps you pause for a second before deciding, judge more carefully, and encourages you to confirm with family or a professional.",
-        "about_why_title": "Why rules, not AI",
-        "about_why_text": "In high-stakes situations involving money and health, being able to explain *why* matters more than looking clever. Rule-based judgement is stable and predictable, and it can always tell you exactly why it reached its verdict.",
+        "about_why_title": "How the AI and the rules work together",
+        "about_why_text": "In high-stakes situations involving money and health, a verdict must only ever get *more* cautious, never less. So a stable, explainable rule engine sets the risk floor first, and the AI does a second-opinion pass on top — but it can only raise the risk, never lower it. You get the AI's sharpness while always being able to see why a verdict was reached.",
         # privacy policy
         "nav_privacy": "Privacy",
         "privacy_title": "Privacy",

@@ -6,10 +6,12 @@
 # keywords). The actual words shown to the user are looked up later in
 # translations.py, so the same saved check can be displayed in Chinese or English.
 #
-# The logic is deliberately rule-based, not AI. In a high-stakes setting (scams,
-# medication) an explainable, predictable rule is safer than a clever black box:
-# we can always tell the user exactly WHY we flagged something. That is a design
-# choice, documented in the README.
+# This is the deterministic SAFETY FLOOR of a layered system, not the whole story.
+# In a high-stakes setting (scams, medication) an explainable, predictable rule is
+# the trustworthy lower bound: we can always tell the user exactly WHY we flagged
+# something. The Gemini tool-calling agent in ai/agent.py runs on top of this floor
+# as a second-opinion pass, but — by design — it can only RAISE the risk this layer
+# reports, never lower it. See the README ("Architecture: a layered safety system").
 
 import re
 

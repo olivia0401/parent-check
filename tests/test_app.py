@@ -1,12 +1,10 @@
-# tests/test_app.py
-# Automated tests (pytest) for the judgement logic and the web routes.
-# Run:  python -m pytest -q
+# run with: python -m pytest -q
 
 import app as app_module
 import pytest
 from helpers import analyze_content
 
-# ----------------------------- judgement logic -----------------------------
+# judgement logic
 
 
 def risk(text, source="other"):
@@ -54,7 +52,7 @@ def test_never_returns_safe():
         assert analyze_content(text)["risk"] in {"ok", "caution", "danger"}
 
 
-# --------------------------------- routes ----------------------------------
+# routes
 
 
 @pytest.fixture

@@ -1,5 +1,4 @@
-# render.yaml — infrastructure config so Render can deploy this app automatically.
-# With this file in the repo, Render's "Blueprint" can set everything up in one click.
+# lets Render's "Blueprint" set this app up in one click
 services:
   - type: web
     name: parent-check

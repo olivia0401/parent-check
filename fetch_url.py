@@ -7,7 +7,7 @@ returns {"ok": False, "error": "..."} instead of raising, so the route
 in app.py can just show a friendly message.
 """
 import re
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import requests
 
@@ -19,6 +19,7 @@ except ImportError:
 
 MAX_CHARS = 3000
 TIMEOUT = 10
+MAX_REDIRECTS = 5
 
 HEADERS = {
     "User-Agent": (
@@ -104,7 +105,25 @@ def fetch_article(url):
         return {"ok": False, "error": "unsafe_url"}
 
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT, allow_redirects=True)
+        # SSRF defence: checking only the URL the user pasted isn't enough — an
+        # allowed external page can 3xx-redirect onto an internal address
+        # (loopback, private range, cloud metadata). So we follow redirects
+        # *manually* and re-validate each hop BEFORE requesting it, meaning the
+        # internal address is never actually fetched, not just hidden from output.
+        resp = None
+        for _ in range(MAX_REDIRECTS + 1):
+            if not is_safe_url(url):
+                return {"ok": False, "error": "unsafe_url"}
+            resp = requests.get(
+                url, headers=HEADERS, timeout=TIMEOUT, allow_redirects=False
+            )
+            if resp.is_redirect and resp.headers.get("location"):
+                url = urljoin(url, resp.headers["location"])
+                continue
+            break
+        else:
+            return {"ok": False, "error": "fetch_failed"}  # too many redirects
+
         resp.raise_for_status()
         resp.encoding = resp.apparent_encoding or "utf-8"
 

@@ -1,6 +1,6 @@
-{# Reusable block: the "message for family" with forward/call actions.
-   Used by both result.html and detail.html.
-   Chinese uses WeChat; English uses WhatsApp + phone calls. #}
+{# the "message for family" block with forward/call actions, used by
+   result.html and detail.html. Chinese uses WeChat, English uses WhatsApp +
+   phone calls. #}
 {% macro share_and_call(t, lang, region, risk, category, child_message) %}
   <section>
     <h2>{{ t.child_heading }}</h2>
@@ -18,7 +18,7 @@
 
   <section>
     {% if lang == 'zh' %}
-      {# --- WeChat: save the family member's WeChat ID (reminder + copy) --- #}
+      {# save the family member's WeChat ID - reminder + copy #}
       <h2>{{ t.wechat_heading }}</h2>
       <div id="weixin-set" class="family-set" style="display: none">
         <span class="weixin-shown">{{ t.wechat_saved_prefix }}<b class="wxid"></b></span>
@@ -31,7 +31,7 @@
         <button type="button" class="link-button" onclick="saveWeixin()">{{ t.save_number }}</button>
       </div>
     {% else %}
-      {# --- English: call the family member by phone --- #}
+      {# call the family member by phone #}
       <h2>{{ t.call_heading }}</h2>
       <div id="family-set" class="family-set" style="display: none">
         <a id="family-call" class="link-button" href="tel:">{{ t.call_family }} <span class="num"></span></a>

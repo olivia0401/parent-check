@@ -1,23 +1,17 @@
-# semantic.py
-# The "escalation" layer. It looks at the STRUCTURE / intent of a message rather
-# than single keywords, so it can catch scams that contain no obvious trigger
-# words — the classic example being family-impersonation:
+# Escalation layer - looks at combinations of signals instead of single
+# keywords, so it can catch things like family impersonation:
 #   "Mum, I changed my number, send me some money quickly."
-# None of those words is individually a scam keyword, but their co-occurrence is.
+# None of those words alone is a scam keyword, but together they are.
 #
-# Two hard rules, by design:
-#   1. This layer can only RAISE the risk (return extra danger), never lower it.
-#      The deterministic rules + blocklist remain the safety floor.
-#   2. It needs no external API to run. A real model (a small classifier or an
-#      LLM) can be plugged in later via _model_escalate(); until then the
-#      heuristic below does the work, so the app runs anywhere for free.
+# Can only ADD danger, never reduce it - the keyword rules + blocklist stay the
+# floor. _model_escalate() below is the same idea but with a trained classifier,
+# off unless SEMANTIC_MODEL is set.
 
 import os
 
 from normalize import compact
 
-# Structural signals. Listed as readable tokens; matched on the compact form so
-# spacing / full-width / case don't matter. Matched tokens double as evidence.
+# matched on the compact form so spacing/full-width/case don't matter
 _NUMBER_CHANGE = [
     "新号码",
     "新号",
@@ -77,29 +71,28 @@ def escalate(content):
     extra = 0
     reasons = []
 
-    # Family-impersonation / emergency-money pattern: a structural signal, not a
-    # single keyword. Either "new number + money" or "family + money + urgency".
+    # "new number + money" or "family + money + urgency" - either combo reads
+    # as an impersonation/emergency-money scam even with no scam keywords
     if (nc and money) or (fam and money and urg):
         extra += 3
-        reasons = list(dict.fromkeys(nc + money + fam + urg))  # evidence, de-duped
+        reasons = list(dict.fromkeys(nc + money + fam + urg))
 
     m_extra, m_reasons = _model_escalate(content)
     return extra + m_extra, reasons + m_reasons
 
 
-# A learned scam classifier (trained by train_model.py). Probability at or above
-# this threshold escalates. Kept high so the model adds confidence, not noise.
+# trained by train_model.py - kept high so it only adds confidence, not noise
 _MODEL_THRESHOLD = 0.90
 _model_cache = {"loaded": False, "pipe": None}
 
 
 def _load_model():
-    """Lazy-load the saved classifier once. Any failure -> no model (fail safe)."""
+    """Lazy-load the saved classifier once. Any failure just means no model."""
     if _model_cache["loaded"]:
         return _model_cache["pipe"]
     _model_cache["loaded"] = True
     try:
-        import joblib  # imported lazily so the web app needs no ML deps
+        import joblib  # lazy import so the web app doesn't need ML deps
 
         path = os.path.join(os.path.dirname(__file__), "model", "scam_model.joblib")
         _model_cache["pipe"] = joblib.load(path)
@@ -109,18 +102,9 @@ def _load_model():
 
 
 def _model_escalate(content):
-    """Optional learned layer — a small classifier today, an LLM tomorrow.
-
-    Contract (enforced here):
-      - it may only RAISE risk (return danger >= 0), never lower it;
-      - any error fails safe (returns no escalation), so the model can never
-        crash the app or weaken the deterministic floor;
-      - off unless SEMANTIC_MODEL is set, so the web app needs no ML deps to run.
-
-    A real product could swap the classifier for an LLM behind this same
-    interface, passing the message as DATA (never instructions) and hardening the
-    prompt against injection, since scam messages are adversarial input.
-    """
+    """Optional ML layer, off unless SEMANTIC_MODEL is set. Same contract as
+    escalate(): can only raise risk, and any error here is swallowed so it
+    can't break the rule-based result."""
     if not os.environ.get("SEMANTIC_MODEL"):
         return 0, []
     pipe = _load_model()

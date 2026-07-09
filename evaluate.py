@@ -1,11 +1,9 @@
-# evaluate.py
-# Measure the rule + blocklist + semantic engine against the labelled dataset.
-# Run from the project root:  python evaluate.py
+# Runs the engine against tests/dataset.py and prints accuracy stats.
+# Usage: python evaluate.py
 #
-# In this high-risk domain the metrics are not equally important:
-#   - MISSED SCAM    (a scam predicted "ok") is the dangerous failure.
-#   - FALSE ALARM    (a benign message warned about) is only annoying.
-# The engine is deliberately tuned to avoid missed scams, accepting some alarms.
+# Missed scams (predicted "ok" for an actual scam) and false alarms (benign
+# flagged) are reported separately - missing a scam is the bad failure mode,
+# a false alarm is just annoying, so they're not weighted the same.
 
 from collections import defaultdict
 

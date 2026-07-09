@@ -1,14 +1,12 @@
 -- schema.sql
--- Database schema for "爸妈求证" (Parent Check).
 -- One table that stores every check the user runs, so they can review history.
--- Covers CS50 Week 7 (SQL): table creation, primary keys, typed columns.
 --
--- Note: risk / category / source are stored as language-NEUTRAL codes, not as
--- finished sentences. The words are looked up in translations.py at display time,
--- so a saved check can be viewed in either Chinese or English.
+-- risk / category / source are stored as language-neutral codes, not finished
+-- sentences - translations.py looks them up at display time so a saved check
+-- can be viewed in either Chinese or English.
 
--- Data minimisation: we deliberately do NOT store the original text the user
--- pasted (it may contain personal data). Only the verdict and evidence are kept.
+-- we don't store the original text the user pasted (could contain personal
+-- data), only the verdict and evidence.
 CREATE TABLE IF NOT EXISTS checks (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     created_at  TEXT    NOT NULL,   -- when the check was run (ISO string)

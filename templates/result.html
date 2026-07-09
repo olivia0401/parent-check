@@ -12,7 +12,7 @@
     <p class="summary">{{ summary }}</p>
   </div>
 
-  {# ---- AI analysis block (only shown when Gemini is active) ---- #}
+  {# only shown when Gemini is active #}
   {% if ai_reason %}
     <section class="ai-block">
       <h2>{{ t.ai_heading }} <span class="ai-badge">{{ t.ai_badge }}</span></h2>
@@ -22,7 +22,7 @@
     </section>
   {% endif %}
 
-  {# ---- Emergency action block (only shown on danger + AI active) ---- #}
+  {# only shown on danger when the AI step is active #}
   {% if "emergency_call" in actions %}
     <section class="emergency-block">
       <h2>{{ t.emergency_heading }}</h2>

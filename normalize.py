@@ -1,24 +1,17 @@
-# normalize.py
-# Clean up text before keyword matching, so simple evasions still get caught.
-#
-# Scammers space out or punctuate sensitive words to dodge filters, e.g.
-# "验 证 码", "验.证.码", "B A N K".  We fold everything to a compact form:
-#   - full-width characters -> half-width
-#   - lower-case
-#   - a few known evasion variants mapped to their canonical word
-#   - strip everything except letters, digits and Chinese characters
-# Matching is then done on this compact form for both the text and the keyword.
+# Cleans up text before keyword matching, so spacing/punctuation tricks like
+# "验 证 码" or "B A N K" still get caught: full-width -> half-width, lowercase,
+# a few known pinyin/abbreviation variants mapped back to the real word, then
+# strip everything except letters, digits and Chinese characters. Both the text
+# and the keywords get run through this before comparing.
 
 import re
 
-# Keep only ASCII letters/digits and CJK ideographs.
 _KEEP = re.compile(r"[^0-9a-z一-鿿]")
 
-# A deliberately small, low-false-positive list of known evasion variants.
-# Extend this as real evasions are observed in the wild.
+# small list of known evasions seen in the wild, extend as needed
 VARIANTS = {
-    "yzm": "验证码",  # pinyin initials for 验证码 (verification code)
-    "zhuanzhang": "转账",  # pinyin for 转账 (transfer money)
+    "yzm": "验证码",  # pinyin initials for "verification code"
+    "zhuanzhang": "转账",  # pinyin for "transfer money"
 }
 
 

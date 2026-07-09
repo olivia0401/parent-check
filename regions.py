@@ -1,16 +1,12 @@
-# regions.py
-# Region-specific configuration. The same codebase ships as a UK build or a China
-# build by setting the REGION environment variable (default "uk").
-#
-# What differs by region: the anti-fraud hotline, how to report, and the privacy
-# regime named on the About page. (The contact channel — WeChat vs WhatsApp —
-# follows the UI language instead, so a Chinese speaker in the UK gets WeChat
-# *and* the UK hotline.)
+# Region config - same codebase, switches between a UK and a China build via
+# the REGION env var (default "uk"). Covers the anti-fraud hotline, where to
+# report, and which privacy law gets named on the About page. The contact
+# channel (WeChat vs WhatsApp) follows the UI language instead, so a Chinese
+# speaker in the UK still gets WeChat plus the UK hotline.
 
 import os
 
 REGIONS = {
-    # ---------------------------- United Kingdom ----------------------------
     "uk": {
         "hotline": "159",  # Stop Scams UK: safely reach your bank
         "hotline_label": {
@@ -34,7 +30,6 @@ REGIONS = {
             "en": "Under UK GDPR you have the right to access, correct or delete your data. If you are unhappy with how it is handled, you can complain to the Information Commissioner's Office (ICO, ico.org.uk).",
         },
     },
-    # ------------------------------- China ----------------------------------
     "cn": {
         "hotline": "96110",  # 国家反诈中心专线
         "hotline_label": {
