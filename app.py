@@ -7,14 +7,14 @@
 
 import os
 import secrets
-import sqlite3
-import time
-from collections import deque
-from contextlib import closing
-from datetime import datetime
 
-from flask import Flask, redirect, render_template, request, session, url_for
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask_cors import CORS
 
+import db
+import observability
+import repo
+from ratelimit import RateLimiter
 from fetch_url import fetch_article, is_url
 from helpers import analyze_content, build_view
 from regions import current_region, current_region_code
@@ -30,6 +30,9 @@ if not _secret:
     _secret = "dev-only-key-not-for-production"
 app.secret_key = _secret
 
+# Structured logging + tracing + Prometheus /metrics (degrades if libs absent).
+observability.setup(app, db.engine)
+
 # SameSite=Lax also helps with CSRF (cookie isn't sent on cross-site POSTs).
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
@@ -37,40 +40,26 @@ app.config.update(
     SESSION_COOKIE_SECURE=bool(os.environ.get("RENDER")),
 )
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "parent_check.db")
+# The Next.js frontend runs on its own origin and calls /api/*. Allow just
+# that origin (set FRONTEND_ORIGIN in production; defaults to the dev server).
+FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
+CORS(app, resources={r"/api/*": {"origins": FRONTEND_ORIGIN}})
 
 MAX_CONTENT = 5000  # cap on submitted text length
 
-# Crude in-memory rate limit per IP. Resets on restart and only works per
-# worker - good enough for one gunicorn worker, not for a real multi-worker
-# setup (would need Redis or a proxy-level limiter).
+# Rate limit per IP, enforced across all workers via Redis (falls back to an
+# in-process window if REDIS_URL is unset/unreachable - see ratelimit.py).
 RATE_LIMIT = 30
 RATE_WINDOW = 60
-_rate_hits = {}  # ip -> deque of timestamps
+_limiter = RateLimiter(RATE_LIMIT, RATE_WINDOW)
 
 # source options shown on the home page form (labels live in translations.py)
 SOURCE_CODES = ["health_article", "supplement_ad", "suspicious_msg", "other"]
 
 
-def get_db():
-    """Open a connection to the SQLite database with row access by column name."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def init_db():
-    """Create the table from schema.sql if it does not exist yet."""
-    schema = os.path.join(os.path.dirname(__file__), "schema.sql")
-    with open(schema, "r", encoding="utf-8") as f:
-        sql = f.read()
-    with closing(get_db()) as conn:
-        conn.executescript(sql)
-        conn.commit()
-
-
 # Run on import, not just __main__ - gunicorn never executes the block below.
-init_db()
+# Enables pgvector and creates tables/indexes if they don't exist yet.
+db.init_db()
 
 # Optional Gemini step. Stays off (None) unless GEMINI_API_KEY is set, in which
 # case the app just runs on the rule-based checks like before.
@@ -91,8 +80,8 @@ def _init_ai():
             return
 
         data_dir = os.path.dirname(__file__)
-        _rag_zh = ScamRAGEngine(DB_PATH, _llm, "zh")
-        _rag_en = ScamRAGEngine(DB_PATH, _llm, "en")
+        _rag_zh = ScamRAGEngine(_llm, "zh")
+        _rag_en = ScamRAGEngine(_llm, "en")
 
         # only does anything the first time - table stays populated after
         _rag_zh.seed_if_empty(os.path.join(data_dir, "data", "scams_zh.json"))
@@ -140,16 +129,9 @@ def rate_limit():
         return None
     fwd = request.headers.get("X-Forwarded-For", request.remote_addr) or "?"
     ip = fwd.split(",")[0].strip()
-    now = time.time()
-    if len(_rate_hits) > 5000:  # bound memory
-        _rate_hits.clear()
-    hits = _rate_hits.setdefault(ip, deque())
-    while hits and now - hits[0] > RATE_WINDOW:
-        hits.popleft()
-    if len(hits) >= RATE_LIMIT:
+    if not _limiter.allow(ip):
         app.logger.warning("rate limit hit for %s", ip)
         return "Too many requests, please slow down.", 429
-    hits.append(now)
     return None
 
 
@@ -157,6 +139,11 @@ def rate_limit():
 def csrf_protect():
     """Reject POSTs whose CSRF token doesn't match the session's."""
     if request.method == "POST":
+        # The JSON API is stateless and cross-origin (no cookies, no session),
+        # so the form CSRF token doesn't apply. It's guarded instead by the
+        # CORS allow-list above and the per-IP rate limit below.
+        if request.path.startswith("/api/"):
+            return None
         sent = request.form.get("csrf_token", "")
         if not sent or sent != session.get("csrf"):
             return "Bad request (invalid CSRF token).", 400
@@ -220,7 +207,9 @@ def check():
     lang = current_lang()
     ai_result = None
     if _llm and _llm.available:
-        from ai import agent as ai_agent
+        # LangGraph state-machine agent (agent.py keeps the original
+        # hand-rolled loop as a contrast; both share the same helpers).
+        from ai import agent_graph as ai_agent
         rag = _rag_zh if lang == "zh" else _rag_en
         ai_result = ai_agent.analyze(content, lang, result["risk"], _llm, rag)
 
@@ -230,22 +219,13 @@ def check():
 
     # Store the verdict/category/matched signals, but not the original text -
     # it might contain personal info the user pasted in.
-    with closing(get_db()) as conn:
-        cur = conn.execute(
-            """INSERT INTO checks
-               (created_at, source, risk, category, reasons, helpful, user_token)
-               VALUES (?, ?, ?, ?, ?, NULL, ?)""",
-            (
-                datetime.now().strftime("%Y-%m-%d %H:%M"),
-                source,
-                result["risk"],
-                result["category"],
-                "\n".join(result["reasons"]),
-                current_uid(),
-            ),
-        )
-        conn.commit()
-        check_id = cur.lastrowid
+    check_id = repo.create_check(
+        source=source,
+        risk=result["risk"],
+        category=result["category"],
+        reasons=result["reasons"],
+        user_token=current_uid(),
+    )
 
     # log the verdict for debugging, never the text someone submitted
     app.logger.info(
@@ -277,25 +257,89 @@ def check():
     )
 
 
+@app.route("/api/check", methods=["POST"])
+def api_check():
+    """
+    JSON API consumed by the Next.js frontend.
+
+    Stateless by design: it analyses the submitted text and returns the verdict
+    as JSON, with no session, no stored history and no CSRF token. Language and
+    source come from the request body instead of the session cookie. It reuses
+    the exact same pipeline as the HTML /check route: rule engine → optional
+    LangGraph AI second opinion (which can only raise the risk) → view builder.
+    """
+    data = request.get_json(silent=True) or {}
+    content = (data.get("content") or "").strip()[:MAX_CONTENT]
+    source = data.get("source") or "other"
+    if source not in SOURCE_CODES:
+        source = "other"
+    lang = data.get("lang") if data.get("lang") in TRANSLATIONS else "zh"
+
+    if not content:
+        return jsonify({"error": "empty_content"}), 400
+
+    # If the user pasted a URL, fetch the article text first (same as /check).
+    fetched_title = ""
+    if is_url(content):
+        fetch = fetch_article(content)
+        if fetch["ok"]:
+            fetched_title = fetch.get("title", "")
+            content = fetch["text"]
+        else:
+            error_key = {
+                "timeout":    "url_error_timeout",
+                "no_content": "url_error_no_content",
+                "unsafe_url": "url_error_unsafe",
+            }.get(fetch["error"], "url_error_generic")
+            return jsonify({"error": "url_fetch_failed",
+                            "message": TRANSLATIONS[lang][error_key]}), 400
+
+    result = analyze_content(content, source)
+
+    ai_result = None
+    if _llm and _llm.available:
+        from ai import agent_graph as ai_agent
+        rag = _rag_zh if lang == "zh" else _rag_en
+        ai_result = ai_agent.analyze(content, lang, result["risk"], _llm, rag)
+    if ai_result:
+        result["risk"] = ai_result["ai_risk"]  # only ever raises the risk
+
+    app.logger.info(
+        "api check verdict=%s category=%s source=%s ai=%s",
+        result["risk"], result["category"], source, "yes" if ai_result else "no",
+    )
+
+    t = TRANSLATIONS[lang]
+    view = build_view(t, result["risk"], result["category"], result["reasons"], source)
+
+    return jsonify({
+        "risk": result["risk"],
+        "category": result["category"],
+        "reasons": view["reasons"],
+        "summary": view["summary"],
+        "advice": view["advice"],
+        "child_message": view["child_message"],
+        "ai_reason": ai_result["reason"] if ai_result else "",
+        "ai_advice": ai_result["advice"] if ai_result else "",
+        "ai_tools": ai_result.get("tools_called", []) if ai_result else [],
+        "actions": ai_result["actions"] if ai_result else [],
+        "emergency_number": current_region()["hotline"],
+        "fetched_title": fetched_title,
+        "used_ai": bool(ai_result),
+    })
+
+
 @app.route("/history")
 def history():
     """Show all past checks, newest first."""
-    with closing(get_db()) as conn:
-        rows = conn.execute(
-            "SELECT id, created_at, source, risk FROM checks WHERE user_token = ? ORDER BY id DESC",
-            (current_uid(),),
-        ).fetchall()
+    rows = repo.list_checks(current_uid())
     return render_template("history.html", rows=rows)
 
 
 @app.route("/history/<int:check_id>")
 def detail(check_id):
     """Show the full detail of one past check, rendered in the current language."""
-    with closing(get_db()) as conn:
-        row = conn.execute(
-            "SELECT * FROM checks WHERE id = ? AND user_token = ?",
-            (check_id, current_uid()),
-        ).fetchone()
+    row = repo.get_check(check_id, current_uid())
     if row is None:
         return redirect(url_for("history"))
 
@@ -316,9 +360,7 @@ def detail(check_id):
 @app.route("/history/clear", methods=["POST"])
 def clear_history():
     """Delete this browser's saved history from the server."""
-    with closing(get_db()) as conn:
-        conn.execute("DELETE FROM checks WHERE user_token = ?", (current_uid(),))
-        conn.commit()
+    repo.clear_history(current_uid())
     return redirect(url_for("history"))
 
 
@@ -326,12 +368,7 @@ def clear_history():
 def feedback(check_id):
     """Record whether a past check was helpful."""
     value = 1 if request.form.get("helpful") == "yes" else 0
-    with closing(get_db()) as conn:
-        conn.execute(
-            "UPDATE checks SET helpful = ? WHERE id = ? AND user_token = ?",
-            (value, check_id, current_uid()),
-        )
-        conn.commit()
+    repo.set_feedback(check_id, current_uid(), value)
     return redirect(url_for("detail", check_id=check_id))
 
 
@@ -348,5 +385,5 @@ def privacy():
 
 
 if __name__ == "__main__":
-    init_db()
+    db.init_db()
     app.run(debug=True)
