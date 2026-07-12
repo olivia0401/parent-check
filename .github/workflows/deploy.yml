@@ -20,7 +20,20 @@ env:
   ROLE_ARN: arn:aws:iam::378970972471:role/github-actions-parent-check-deploy
 
 jobs:
+  # Quality gate: a classifier regression blocks the deploy entirely.
+  eval-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Eval quality gate
+        run: python evaluate.py
+
   deploy:
+    needs: eval-gate        # only deploys if the eval gate passed
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

@@ -2,3 +2,6 @@ __pycache__/
 parent_check.db
 *.pyc
 *.joblib
+
+# Secrets — never commit. Only .env.example is tracked.
+.env

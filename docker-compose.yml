@@ -1,0 +1,48 @@
+# Local production-shaped stack: the Flask app talks to PostgreSQL (with the
+# pgvector extension) and Redis, the same services it will use on AWS
+# (RDS + ElastiCache). Run with:  docker compose up --build
+services:
+  db:
+    # pgvector/pgvector ships Postgres with the `vector` extension preinstalled.
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: parentcheck
+      POSTGRES_PASSWORD: parentcheck
+      POSTGRES_DB: parentcheck
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U parentcheck"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg2://parentcheck:parentcheck@db:5432/parentcheck
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: dev-only-key-not-for-production
+      # GEMINI_API_KEY: set this to enable the AI/RAG path
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
