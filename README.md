@@ -1,7 +1,8 @@
 # 爸妈求证 (ScamShield for Parents)
 
 **A hybrid scam-safety AI agent: a deterministic risk floor + a Gemini
-tool-calling agent + bilingual RAG + privacy-preserving local history.**
+tool-calling agent orchestrated with LangGraph + bilingual pgvector RAG,
+behind a JSON API with a Next.js/TypeScript frontend.**
 
 #### Video Demo: <在此粘贴你的 YouTube unlisted 链接>
 
@@ -73,10 +74,11 @@ new-number + money + urgency) by the co-occurrence of structural signals. This
 layer is the **safety floor** — it runs with no API key, no network, and its
 output is a lower bound on the final risk.
 
-**[3] The Gemini agent** (`ai/agent.py`) takes a second look *only* to find what
-the rules missed. It is a genuine tool-calling agent, not a one-shot prompt:
+**[3] The Gemini agent** (`ai/agent_graph.py`) takes a second look *only* to find
+what the rules missed. It is a genuine tool-calling agent, not a one-shot prompt:
 given the message, it decides whether it needs more evidence, calls tools, reads
-the results, and then commits to a verdict — bounded to raising the risk.
+the results, and then commits to a verdict — bounded to raising the risk. The
+loop is a **LangGraph state machine** (see below).
 
 Verdicts are worded to avoid false reassurance. There are three, and none of
 them is the word "safe":
@@ -85,21 +87,50 @@ them is the word "safe":
 - **要小心** — be careful
 - **很可能有问题** — very likely a problem
 
-## The agent (`ai/agent.py`, `ai/tools.py`)
+## The agent — a LangGraph state machine (`ai/agent_graph.py`)
 
-The agent loop is deliberately small and auditable:
+The agent loop is a **LangGraph** `StateGraph` with two nodes and a conditional
+router, rather than a hand-rolled loop:
+
+```
+        ┌───────────────────────────────────────┐
+        ▼                                         │ (tool results)
+   ┌────────┐   wants a tool?   ┌────────┐        │
+   │ reason │ ───────────────►  │ tools  │ ───────┘
+   └────────┘                   └────────┘
+        │  final verdict
+        ▼
+       END
+```
 
 1. The user message is wrapped in `<message>` tags and explicitly labelled as
    **data, not instructions**, with a directive to ignore anything inside it that
    tries to change the verdict — because scam messages are themselves adversarial
    input (see *Prompt-injection defence*).
-2. Gemini gets the two tool declarations and runs for **up to two turns**: one to
-   optionally call tools, one to answer. It chooses whether to call
-   `query_knowledge_base`, `check_phone_numbers`, both, or neither.
-3. Tool calls it requests are executed **in parallel** (`run_tools_parallel`,
-   a `ThreadPoolExecutor` with a hard timeout) and the results are fed back.
-4. The reply is parsed into `{risk, reason, advice}`. `pick_higher_risk()` then
-   merges it with the rule-based floor so the agent can only ever escalate.
+2. The **`reason`** node asks Gemini (given the two tool declarations) whether to
+   call `query_knowledge_base`, `check_phone_numbers`, both, or neither. The
+   conditional edge routes to the `tools` node if it asked for tools, or to `END`
+   if it produced a verdict.
+3. The **`tools`** node runs the requested calls **in parallel**
+   (`run_tools_parallel`, a `ThreadPoolExecutor` with a hard timeout) and feeds
+   the results back as one turn, then loops to `reason`.
+4. The **turn budget is enforced by the graph's edges** — the router refuses to
+   re-enter `reason` once the budget is spent, instead of relying on an
+   off-by-one `for` loop. The reply is parsed into `{risk, reason, advice}` and
+   `pick_higher_risk()` merges it with the rule-based floor, so the agent can only
+   ever escalate.
+
+Per-request dependencies (the Gemini client, the language's RAG engine) are
+injected through the run **config**, not the serialized state; a checkpointer
+records each step (in-memory here, swappable for LangGraph's `PostgresSaver`
+since this project already runs Postgres) and the run's thread is dropped when it
+finishes. Why bother over the ad-hoc loop: named nodes and an explicit router
+make the control flow inspectable, and the turn cap and fallback behaviour live
+in the graph structure instead of imperative bookkeeping.
+
+> The original hand-rolled two-turn loop is kept in **`ai/agent.py`** as a
+> readable contrast; both share the same prompt builder, parser and escalate-only
+> merge, so the safety behaviour can't drift between them.
 
 The two tools:
 
@@ -112,18 +143,22 @@ The two tools:
 
 ## Bilingual RAG (`ai/rag_engine.py`)
 
-A lightweight retrieval layer with no vector-DB dependency, sized honestly for a
-few dozen curated examples:
+A retrieval layer over a curated bilingual corpus of known scams:
 
 - Each scam case (`data/scams_{zh,en}.json`) is embedded with Gemini
-  `text-embedding-004` and stored in SQLite as a JSON float array
-  (`scam_cases` table).
-- Retrieval loads the rows for the active language and ranks them by **cosine
-  similarity** in Python. This is deliberately simple: at this corpus size a
-  vector database would be over-engineering, and the code documents that it would
-  be the wrong choice at scale.
+  `text-embedding-004` and stored in a native **pgvector** column
+  (`scam_cases.embedding`, `vector(768)`).
+- Retrieval is an indexed nearest-neighbour search in Postgres —
+  `ORDER BY embedding <=> query` over an **HNSW cosine index** — so it stays fast
+  as the corpus grows, behind the same `retrieve_similar()` interface
+  (`ai/rag_engine.py`).
 - The store is **seeded once on first run** and separated by language, so the
   Chinese and English knowledge bases never cross-contaminate retrieval.
+
+> Earlier versions stored embeddings as a JSON array in SQLite and ranked them
+> with a Python cosine loop — honest and fine for a few dozen rows. The migration
+> to pgvector (see [*Running in production*](#running-in-production)) removes that
+> scaling ceiling without changing the retrieval interface.
 
 ## AI safety design (the point of the project)
 
@@ -151,17 +186,80 @@ safety":
   **never persisted** — only the verdict, category, matched signals and timestamp
   — so the history feature can't become a breach surface.
 
+## Running in production
+
+The app ships with the infrastructure to run as a real service, not just a
+prototype. `docker compose up --build` brings up the whole stack locally — the
+same shape it runs in on AWS:
+
+```
+Internet ─► ALB ─► ECS Fargate (gunicorn) ─┬─► PostgreSQL 16 + pgvector   (RDS)
+                                            └─► Redis 7                    (ElastiCache)
+              observability: OpenTelemetry traces · JSON logs · Prometheus /metrics
+```
+
+- **PostgreSQL + pgvector.** History and scam-case embeddings live in Postgres;
+  retrieval is a native, HNSW-indexed `embedding <=> query` search. A SQLAlchemy
+  data layer (`db.py`, `repo.py`) keeps SQL out of the routes, and **Alembic**
+  owns schema migrations (`migrations/`, `RUN_POSTGRES.md`).
+- **Redis.** A sliding-window rate limiter (`ratelimit.py`) enforced across all
+  workers/tasks via a Lua-atomic Redis script, degrading to an in-process window
+  when Redis is unavailable — so a single worker's limit can't be multiplied by
+  fan-out, and the app never 500s just because Redis is down.
+- **Observability** (`observability.py`): OpenTelemetry auto-instruments Flask,
+  outbound `requests`, and SQLAlchemy into one trace per request; logs are JSON
+  carrying `request_id`/`trace_id`; `/metrics` exposes a Prometheus latency
+  histogram (P50/P95). Each pillar degrades independently if its library is absent.
+- **MCP server** (`mcp_server.py`, `MCP.md`): the agent's own tools —
+  `check_phone_numbers` and `query_knowledge_base` — are also exposed over the
+  **Model Context Protocol**, with published schemas, input validation, and audit
+  logging, so any MCP client (Claude Desktop, an IDE, another agent) can call them.
+- **Infrastructure as code** (`infra/`): **Terraform** provisions RDS,
+  ElastiCache, ECS Fargate, ECR, Secrets Manager, an ALB, and a GitHub-OIDC
+  deploy role (no long-lived AWS keys).
+- **CI/CD with an eval gate**: GitHub Actions runs the tests and an offline
+  **quality gate** (`evaluate.py`) — a classifier regression in accuracy, scam
+  recall, missed scams, or false alarms fails the build and **blocks the deploy** —
+  then builds the image, pushes to ECR (OIDC), and rolls the ECS service.
+
+## Web frontend (`frontend/` — Next.js + TypeScript + Tailwind)
+
+The same analysis pipeline is exposed as a **JSON API** (`POST /api/check`) and
+consumed by a **Next.js** (App Router) + **TypeScript** + **Tailwind CSS**
+single-page frontend, decoupling the UI from the backend:
+
+```
+Next.js (TS) ──fetch──► POST /api/check (Flask, CORS-scoped) ──► same pipeline:
+   :3000                    :8000                                 rules → LangGraph AI
+```
+
+- `/api/check` is **stateless**: language and source come from the request body,
+  it stores no history and carries no session — so it's exempt from the form-CSRF
+  check and guarded instead by a CORS allow-list (`FRONTEND_ORIGIN`) and the same
+  per-IP rate limit. It reuses the identical rule-engine → LangGraph → view
+  pipeline as the server-rendered `/check`, so the two UIs can't diverge.
+- The frontend (`frontend/app/page.tsx`, `components/ResultCard.tsx`) is a typed
+  client: `lib/types.ts` mirrors the API contract, `lib/api.ts` is the `fetch`
+  wrapper, and the risk badge is colour-coded green/amber/red with a bilingual
+  (zh/en) one-tap toggle. See [`frontend/README.md`](frontend/README.md).
+
 ## Files
 
-- **app.py** — the Flask app: routes, SQLite access, and the orchestration in
-  `/check` that runs the rule engine, then (if a key is set) the Gemini agent,
-  then applies the escalate-only merge before saving and rendering.
-- **ai/agent.py** — the tool-calling agent loop: prompt construction, the
-  two-turn tool cycle, reply parsing, and the escalate-only risk merge.
+- **app.py** — the Flask app: routes (server-rendered `/check` **and** the JSON
+  `/api/check`), a SQLAlchemy/Postgres data layer, and the orchestration that runs
+  the rule engine, then (if a key is set) the LangGraph agent, then applies the
+  escalate-only merge before saving and rendering.
+- **ai/agent_graph.py** — the **LangGraph** state machine the app runs: the
+  `reason`/`tools` nodes, the conditional router and turn budget, config-injected
+  dependencies, and a checkpointer.
+- **ai/agent.py** — the original hand-rolled two-turn loop, kept as a contrast,
+  plus the shared prompt builder, reply parser and escalate-only risk merge.
+- **frontend/** — the Next.js + TypeScript + Tailwind frontend that calls
+  `/api/check`.
 - **ai/tools.py** — the tool declarations plus `query_knowledge_base` and
   `check_phone_numbers`, run in parallel with a timeout.
-- **ai/rag_engine.py** — the bilingual RAG store: embed, seed, and cosine
-  retrieval over SQLite.
+- **ai/rag_engine.py** — the bilingual RAG store: embed, seed, and HNSW-indexed
+  cosine retrieval over a native **pgvector** column in Postgres.
 - **ai/llm_client.py** — a thin `requests` wrapper over Gemini
   (`generateContent` + embeddings), where every failure returns `None` so the
   app can carry on.
@@ -246,32 +344,35 @@ as a security tool, not just a web form:
 - **Tested** — `python -m pytest` covers the judgement logic, CSRF rejection and
   per-browser isolation; CI runs ruff + pytest + the accuracy check on every push.
 
-Known limits for a larger deployment: moving SQLite→Postgres with a retention
-policy (all DB access is isolated in `get_db()`), a shared rate-limit store, and
-automated dependency scanning (`pip-audit` / Dependabot).
+Known limits for a larger deployment: a data-retention policy on the Postgres
+history table, and automated dependency scanning (`pip-audit` / Dependabot). The
+Postgres migration, pgvector retrieval and shared Redis rate-limit store that
+earlier versions listed here as future work are now in place (see *Running in
+production*).
 
 ## How to run
 
+The whole stack (app + PostgreSQL/pgvector + Redis) runs with one command:
+
 ```bash
-pip install -r requirements.txt
-python app.py
+docker compose up --build
 ```
 
-Then open the address Flask prints (usually `http://127.0.0.1:5000`). The page is
-mobile-friendly.
+Then open `http://localhost:8000` for the server-rendered app. The page is
+mobile-friendly, and `http://localhost:8000/metrics` exposes the Prometheus
+metrics. See [`RUN_POSTGRES.md`](RUN_POSTGRES.md) for running against Postgres
+without Docker and for the Alembic migration workflow.
+
+**For the Next.js frontend**, with the backend running, start the dev server
+separately (`cd frontend && npm install && npm run dev`) and open
+`http://localhost:3000`; it calls the backend's `/api/check`. See
+[`frontend/README.md`](frontend/README.md).
 
 **To enable the AI layer**, set a free Gemini API key
-(https://aistudio.google.com/app/apikey):
-
-```bash
-cp .env.example .env      # then fill in GEMINI_API_KEY
-export GEMINI_API_KEY=...  # or put it in .env
-python app.py
-```
-
-Without a key the app runs exactly as before on the deterministic floor — the AI
-step simply stays off. `SEMANTIC_MODEL=1` (plus `requirements-ml.txt`) enables the
-optional local classifier.
+(https://aistudio.google.com/app/apikey) — copy `.env.example` to `.env` and fill
+in `GEMINI_API_KEY`, or set it in the environment. Without a key the app runs on
+the deterministic floor and the AI/RAG step simply stays off; `SEMANTIC_MODEL=1`
+(plus `requirements-ml.txt`) enables the optional local classifier.
 
 ## Limitations and future work
 
