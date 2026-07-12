@@ -3,7 +3,7 @@
 
 {% block main %}
   <div class="risk-card {{ row['risk'] }}">
-    <p class="risk-label">{{ row['created_at'] }} · {{ t.sources[row['source']] }}</p>
+    <p class="risk-label">{{ row.created_at.strftime('%Y-%m-%d %H:%M') }} · {{ t.sources[row['source']] }}</p>
     <h1 class="risk-text">{{ t.risk[row['risk']] }}</h1>
     <p class="summary">{{ summary }}</p>
   </div>

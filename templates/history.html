@@ -9,7 +9,7 @@
       {% for row in rows %}
         <li>
           <a href="{{ url_for('detail', check_id=row['id']) }}">
-            <span class="when">{{ row['created_at'] }}</span>
+            <span class="when">{{ row.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
             <span class="src">{{ t.sources[row['source']] }}</span>
             <span class="badge {{ row['risk'] }}">{{ t.risk[row['risk']] }}</span>
           </a>

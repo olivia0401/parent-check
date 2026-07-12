@@ -16,5 +16,7 @@ jobs:
         run: ruff check .
       - name: Tests
         run: python -m pytest -q
-      - name: Accuracy check
+      - name: Eval quality gate
+        # Fails the build if classifier quality regresses below thresholds
+        # (accuracy / scam recall / missed scams / false alarms). See evaluate.py.
         run: python evaluate.py
