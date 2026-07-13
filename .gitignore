@@ -8,3 +8,6 @@ parent_check.db
 
 # Nested prompt-evaluation working copy (its own repo + .env secrets) — never commit
 prompt test/
+
+# local agent/editor config — never commit
+.claude/
