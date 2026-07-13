@@ -4,8 +4,6 @@
 tool-calling agent orchestrated with LangGraph + bilingual pgvector RAG,
 behind a JSON API with a Next.js/TypeScript frontend.**
 
-#### Video Demo: <在此粘贴你的 YouTube unlisted 链接>
-
 #### What it is
 
 爸妈求证 (ScamShield for Parents) is a bilingual web app that helps elderly

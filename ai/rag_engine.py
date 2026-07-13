@@ -7,11 +7,20 @@ a native `vector` column and similarity search is an indexed
 `ORDER BY embedding <=> :query` executed in Postgres, so it scales to large
 knowledge bases without changing this interface.
 """
+import logging
+import os
 import time
 
 from sqlalchemy import func, select
 
 from db import ScamCase, SessionLocal
+
+log = logging.getLogger(__name__)
+
+# Cases whose cosine similarity to the query falls below this floor are dropped,
+# so structurally-unrelated examples are never fed to the agent as "similar
+# scams". Tunable via env; set to 0 to disable the filter (old behaviour).
+DEFAULT_MIN_SIMILARITY = float(os.getenv("RAG_MIN_SIMILARITY", "0.3"))
 
 
 class ScamRAGEngine:
@@ -41,7 +50,8 @@ class ScamRAGEngine:
         try:
             with open(json_path, encoding="utf-8") as f:
                 cases = json.load(f)
-        except Exception:
+        except Exception as e:
+            log.warning("RAG seed skipped: could not load %s (%s)", json_path, e)
             return 0
 
         added = 0
@@ -64,9 +74,14 @@ class ScamRAGEngine:
                 added += 1
         return added
 
-    def retrieve_similar(self, text, n=3):
-        """Return the n most similar saved scam cases for this text, using an
-        indexed cosine-distance search in Postgres."""
+    def retrieve_similar(self, text, n=3, min_similarity=None):
+        """Return up to n saved scam cases most similar to this text, using an
+        indexed cosine-distance search in Postgres. Cases scoring below
+        `min_similarity` (default from RAG_MIN_SIMILARITY) are dropped, so a
+        query with no genuinely-similar case returns nothing rather than the
+        top-n irrelevant rows."""
+        if min_similarity is None:
+            min_similarity = DEFAULT_MIN_SIMILARITY
         query_embedding = self.llm.embed(text)
         if query_embedding is None:
             return []
@@ -84,7 +99,7 @@ class ScamRAGEngine:
                 .limit(n)
             ).all()
 
-        return [
+        results = [
             {
                 "text": r.text,
                 "category": r.category,
@@ -93,7 +108,14 @@ class ScamRAGEngine:
                 "similarity": round(1 - r.dist, 3),
             }
             for r in rows
+            if (1 - r.dist) >= min_similarity
         ]
+        if rows and not results:
+            log.debug(
+                "RAG: %d candidate(s) all below min_similarity=%.2f for %r",
+                len(rows), min_similarity, text[:40],
+            )
+        return results
 
     def add_case(self, text, category, analysis):
         """Save a newly confirmed scam example for future lookups."""

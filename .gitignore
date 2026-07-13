@@ -5,3 +5,6 @@ parent_check.db
 
 # Secrets — never commit. Only .env.example is tracked.
 .env
+
+# Nested prompt-evaluation working copy (its own repo + .env secrets) — never commit
+prompt test/
