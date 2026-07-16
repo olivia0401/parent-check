@@ -3,6 +3,7 @@
 resource "aws_ecr_repository" "app" {
   name                 = var.project
   image_tag_mutability = "MUTABLE"
+  force_delete         = true # on-demand up/down: let `terraform destroy` remove the repo even though it holds pushed images
   image_scanning_configuration {
     scan_on_push = true
   }

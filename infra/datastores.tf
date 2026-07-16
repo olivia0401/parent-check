@@ -13,7 +13,7 @@ resource "aws_db_subnet_group" "this" {
 resource "aws_db_instance" "postgres" {
   identifier     = "${var.project}-pg"
   engine         = "postgres"
-  engine_version = "16.4" # pgvector is available; app runs CREATE EXTENSION vector
+  engine_version = "16" # major-only: RDS picks a current 16.x minor (pinning 16.4 risks a deprecated-minor error). pgvector available; app runs CREATE EXTENSION vector
   instance_class = "db.t4g.micro"
 
   allocated_storage = 20

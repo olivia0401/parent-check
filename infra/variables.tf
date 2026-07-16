@@ -40,3 +40,9 @@ variable "github_repo" {
   default     = "olivia0401/parent-check"
   description = "owner/repo allowed to assume the OIDC deploy role."
 }
+
+variable "enable_cicd" {
+  type        = bool
+  default     = false
+  description = "Create the GitHub OIDC provider + deploy role for CI/CD. Off by default so a first manual apply never depends on an OIDC provider already existing in the account. Flip to true once you want GitHub Actions to deploy on push."
+}

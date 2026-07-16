@@ -47,20 +47,25 @@ resource "aws_iam_role" "task" {
 }
 
 # --- GitHub Actions OIDC deploy role (used by .github/workflows/deploy.yml) ---
-data "aws_iam_openid_connect_provider" "github" {
-  # Assumes the GitHub OIDC provider already exists in the account. To create it
-  # with Terraform instead, replace this data source with an
-  # aws_iam_openid_connect_provider resource for token.actions.githubusercontent.com.
-  url = "https://token.actions.githubusercontent.com"
+# Gated behind var.enable_cicd (default false) so the first manual apply does not
+# depend on an OIDC provider already existing. When enabled, Terraform CREATES
+# the provider itself (a fresh account won't have one). If your account already
+# has this provider, either leave enable_cicd=false or `terraform import` it.
+resource "aws_iam_openid_connect_provider" "github" {
+  count           = var.enable_cicd ? 1 : 0
+  url             = "https://token.actions.githubusercontent.com"
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
 }
 
 resource "aws_iam_role" "github_deploy" {
-  name = "github-actions-${var.project}-deploy"
+  count = var.enable_cicd ? 1 : 0
+  name  = "github-actions-${var.project}-deploy"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
-      Principal = { Federated = data.aws_iam_openid_connect_provider.github.arn }
+      Principal = { Federated = aws_iam_openid_connect_provider.github[0].arn }
       Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals    = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
@@ -72,8 +77,9 @@ resource "aws_iam_role" "github_deploy" {
 
 # Push images to ECR and roll the ECS service - exactly what deploy.yml does.
 resource "aws_iam_role_policy" "github_deploy" {
-  name = "ecr-push-and-ecs-deploy"
-  role = aws_iam_role.github_deploy.id
+  count = var.enable_cicd ? 1 : 0
+  name  = "ecr-push-and-ecs-deploy"
+  role  = aws_iam_role.github_deploy[0].id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [

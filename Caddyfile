@@ -1,0 +1,7 @@
+# Caddy auto-provisions a Let's Encrypt certificate for SITE_ADDRESS and
+# terminates HTTPS, reverse-proxying to the Flask app (gunicorn on :8000).
+# SITE_ADDRESS is an IP-based hostname via sslip.io — no domain purchase needed,
+# e.g.  18.130.220.167.sslip.io
+{$SITE_ADDRESS} {
+	reverse_proxy web:8000
+}
