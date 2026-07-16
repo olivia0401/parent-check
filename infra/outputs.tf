@@ -17,6 +17,6 @@ output "redis_endpoint" {
 }
 
 output "github_deploy_role_arn" {
-  description = "Set this as ROLE_ARN in .github/workflows/deploy.yml."
-  value       = aws_iam_role.github_deploy.arn
+  description = "Set this as ROLE_ARN in .github/workflows/deploy.yml. Null unless enable_cicd=true."
+  value       = var.enable_cicd ? aws_iam_role.github_deploy[0].arn : null
 }
