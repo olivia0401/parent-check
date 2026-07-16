@@ -4,6 +4,11 @@
 tool-calling agent orchestrated with LangGraph + bilingual pgvector RAG,
 behind a JSON API with a Next.js/TypeScript frontend.**
 
+**▶ Live:** [16.61.100.161.sslip.io](https://16.61.100.161.sslip.io) — the full
+production stack on **AWS EC2** (Docker Compose + Caddy auto-HTTPS, real
+Postgres/pgvector + Redis). Also on Render:
+[parent-check.onrender.com](https://parent-check.onrender.com).
+
 #### What it is
 
 爸妈求证 (ScamShield for Parents) is a bilingual web app that helps elderly
@@ -186,15 +191,22 @@ safety":
 
 ## Running in production
 
-The app ships with the infrastructure to run as a real service, not just a
-prototype. `docker compose up --build` brings up the whole stack locally — the
-same shape it runs in on AWS:
+This isn't just a prototype — it runs live. The same `docker compose` stack that
+comes up locally (`docker compose up --build`) is what serves the public site,
+deployed on a single **AWS EC2** instance behind Caddy, with real Postgres/
+pgvector and Redis running as containers:
 
 ```
-Internet ─► ALB ─► ECS Fargate (gunicorn) ─┬─► PostgreSQL 16 + pgvector   (RDS)
-                                            └─► Redis 7                    (ElastiCache)
+Internet ─► Caddy (auto-HTTPS) ─► gunicorn (Flask) ─┬─► PostgreSQL 16 + pgvector
+   :443                              :8000           └─► Redis 7
               observability: OpenTelemetry traces · JSON logs · Prometheus /metrics
 ```
+
+The stack is defined once in `docker-compose.prod.yml` and is reproducible on any
+host. For a managed-services deployment, `infra/` additionally provides a
+**Terraform** stack (ECS Fargate + RDS + ElastiCache + ALB + ECR + Secrets
+Manager + a GitHub-OIDC deploy role) as infrastructure-as-code — the same
+architecture, provisioned on demand.
 
 - **PostgreSQL + pgvector.** History and scam-case embeddings live in Postgres;
   retrieval is a native, HNSW-indexed `embedding <=> query` search. A SQLAlchemy
