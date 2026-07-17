@@ -1,5 +1,7 @@
 # 爸妈求证 (ScamShield for Parents)
 
+[![ScamShield for Parents — a bilingual scam-safety AI agent, live on AWS](static/og-image.png)](https://16.61.100.161.sslip.io)
+
 **A hybrid scam-safety AI agent: a deterministic risk floor + a Gemini
 tool-calling agent orchestrated with LangGraph + bilingual pgvector RAG,
 behind a JSON API with a Next.js/TypeScript frontend.**
