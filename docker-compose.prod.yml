@@ -43,6 +43,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: ${SECRET_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      SITE_URL: "https://${SITE_ADDRESS}"   # for absolute og:/twitter: share links; reuses SITE_ADDRESS
     depends_on:
       db:
         condition: service_healthy
