@@ -12,8 +12,12 @@ the AI step.
 import os
 import requests
 
-GENERATE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-EMBED_URL = "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent"
+# Models refreshed 2026-07: the account's free tier gives 0 quota on
+# gemini-2.0-flash and text-embedding-004 is retired. gemini-flash-lite-latest
+# has free quota and supports function calling; gemini-embedding-001 replaces
+# the retired embedding model.
+GENERATE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent"
+EMBED_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent"
 
 
 class LLMClient:
@@ -38,6 +42,9 @@ class LLMClient:
                     "generationConfig": {
                         "temperature": temperature,
                         "maxOutputTokens": 400,
+                        # flash-lite is a thinking model; disable thinking so the
+                        # small output budget isn't spent before the answer.
+                        "thinkingConfig": {"thinkingBudget": 0},
                     },
                 },
                 timeout=15,
@@ -65,7 +72,7 @@ class LLMClient:
                 json={
                     "contents": messages,
                     "tools": [{"functionDeclarations": tools}],
-                    "generationConfig": {"temperature": 0.1, "maxOutputTokens": 600},
+                    "generationConfig": {"temperature": 0.1, "maxOutputTokens": 600, "thinkingConfig": {"thinkingBudget": 0}},
                 },
                 timeout=20,
             )
@@ -93,8 +100,9 @@ class LLMClient:
             resp = requests.post(
                 f"{EMBED_URL}?key={self.api_key}",
                 json={
-                    "model": "models/text-embedding-004",
+                    "model": "models/gemini-embedding-001",
                     "content": {"parts": [{"text": text[:2000]}]},
+                    "outputDimensionality": 768,  # match the pgvector vector(768) column
                 },
                 timeout=10,
             )
