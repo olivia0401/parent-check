@@ -159,6 +159,8 @@ def inject_translations():
         "region": current_region(),
         "region_code": current_region_code(),
         "csrf_token": csrf_token(),
+        # Public base URL for absolute og:/twitter: links (empty in local dev).
+        "site_url": os.environ.get("SITE_URL", "").rstrip("/"),
     }
 
 
