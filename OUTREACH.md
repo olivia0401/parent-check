@@ -25,7 +25,7 @@
 - 详见隐私说明页
 
 ### 试用网址
-👉 https://parent-check.onrender.com （第一次打开可能要等约 30 秒"唤醒"）
+https://parent-check.onrender.com （第一次打开可能要等约 30 秒"唤醒"）
 
 ### 我想请你帮的忙
 请试用 2–3 次,然后告诉我:**哪里看不懂?判断准不准?会不会想推荐给爸妈?** 你的反馈会直接帮我改进它。
@@ -61,7 +61,7 @@ either.
 - See the in-app Privacy page for details
 
 ### Try it
-👉 https://parent-check.onrender.com (first visit may take ~30s to "wake up")
+https://parent-check.onrender.com (first visit may take ~30s to "wake up")
 
 ### What I'm asking
 Please try it 2–3 times and tell me: **what was confusing? was the verdict

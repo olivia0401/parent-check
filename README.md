@@ -327,6 +327,19 @@ here the bottleneck is *data, not architecture*. It's kept behind the
 deterministic floor so it can be switched on safely once there's enough data. The
 web app needs no ML dependencies to run.
 
+### QE tooling (optional)
+
+Two industry tools sit alongside the hand-labelled eval, both off unless
+configured (`pip install -r requirements-qe.txt`):
+
+- **Giskard** (`scan_giskard.py`) — runs an LLM vulnerability scan against the
+  classifier, probing the one property that matters: can an input be perturbed
+  or a prompt injected so a scam comes back as `risk=ok`? Writes an HTML report.
+- **Langfuse** (`ai/llm_trace.py`) — set `LANGFUSE_PUBLIC_KEY` /
+  `LANGFUSE_SECRET_KEY` and every Gemini call (verdict pass and tool-calling
+  agent) is traced with prompt, reply, tokens, and latency. No keys → silent
+  no-op, so the escalate-only guarantee is never affected.
+
 ## Security and privacy
 
 Because users paste real messages that may contain personal data, I treated this
