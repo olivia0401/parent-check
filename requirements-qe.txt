@@ -1,0 +1,8 @@
+# Optional QE / observability tooling (from the Awesome-LLMOps landscape).
+# Not needed to run the app — install only to enable:
+#   - Langfuse tracing of every Gemini call   -> ai/llm_trace.py
+#   - Giskard scan of the scam classifier      -> scan_giskard.py
+#
+#   pip install -r requirements-qe.txt
+langfuse>=3.0.0
+giskard>=2.0.0
