@@ -5,6 +5,23 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Importing app.py runs db.init_db() (CREATE EXTENSION vector + create_all),
+    # so the test suite needs a real Postgres with pgvector, not a stub. The
+    # credentials/port match the default DATABASE_URL in db.py.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: parentcheck
+          POSTGRES_PASSWORD: parentcheck
+          POSTGRES_DB: parentcheck
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U parentcheck"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -15,6 +32,8 @@ jobs:
       - name: Lint
         run: ruff check .
       - name: Tests
+        env:
+          DATABASE_URL: postgresql+psycopg2://parentcheck:parentcheck@localhost:5432/parentcheck
         run: python -m pytest -q
       - name: Eval quality gate
         # Fails the build if classifier quality regresses below thresholds

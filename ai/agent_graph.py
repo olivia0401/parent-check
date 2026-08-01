@@ -39,10 +39,10 @@ The safety invariants are unchanged and still live in agent.py:
 """
 import logging
 import uuid
-from typing import Optional, TypedDict
+from typing import TypedDict
 
-from langgraph.graph import END, StateGraph
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, StateGraph
 
 from .agent import (
     build_analysis_prompt,
@@ -67,8 +67,8 @@ class AgentState(TypedDict):
     messages: list           # Gemini-format conversation ("contents")
     tools_called: list        # names of tools the model invoked, for the UI
     turns: int                # how many times `reason` has run
-    pending_calls: Optional[list]   # tool calls waiting to be executed
-    result: Optional[dict]    # final verdict dict, or None to fall back
+    pending_calls: list | None   # tool calls waiting to be executed
+    result: dict | None    # final verdict dict, or None to fall back
     done: bool                # set once we have a terminal answer
 
 

@@ -11,7 +11,7 @@ Connection string comes from DATABASE_URL. The default points at the local
 docker-compose Postgres; production sets DATABASE_URL (e.g. AWS RDS).
 """
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
@@ -55,7 +55,7 @@ class Check(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     source: Mapped[str] = mapped_column(String(32), nullable=False)
     risk: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -79,7 +79,7 @@ class ScamCase(Base):
     analysis: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float]] = mapped_column(Vector(EMBED_DIM), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
 
 

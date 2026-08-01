@@ -11,6 +11,9 @@ production stack on **AWS EC2** (Docker Compose + Caddy auto-HTTPS, real
 Postgres/pgvector + Redis). Also on Render:
 [parent-check.onrender.com](https://parent-check.onrender.com).
 
+**🎥 CS50x Final Project Demo Video:** TODO — paste unlisted YouTube link here
+after recording (e.g. `https://youtu.be/XXXXXXXXXXX`).
+
 #### What it is
 
 爸妈求证 (ScamShield for Parents) is a bilingual web app that helps elderly

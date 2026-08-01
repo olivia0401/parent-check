@@ -1,0 +1,20 @@
+# Tooling config.
+#
+# Ruff is pinned to an EXPLICIT rule set on purpose. With no config, ruff's
+# default selection changes between releases, so a routine ruff upgrade can
+# turn CI red by enabling new rules against unchanged code. Pinning the
+# selection here keeps `ruff check .` deterministic.
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+# pyflakes (F) + the pycodestyle error subset ruff enables by default, plus
+# import sorting (I) and pyupgrade (UP).
+#
+# We deliberately do NOT enable flake8-blind-except (BLE) or try-except-pass
+# (S110): this app's safety design is to catch broadly and fall back to the
+# deterministic rule-based verdict instead of surfacing an error to the user.
+# Those broad excepts are intentional and documented at each call site.
+select = ["E4", "E7", "E9", "F", "I", "UP"]
