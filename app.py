@@ -14,9 +14,9 @@ from flask_cors import CORS
 import db
 import observability
 import repo
-from ratelimit import RateLimiter
 from fetch_url import fetch_article, is_url
 from helpers import analyze_content, build_view
+from ratelimit import RateLimiter
 from regions import current_region, current_region_code
 from translations import TRANSLATIONS
 

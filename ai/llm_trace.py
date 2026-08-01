@@ -25,6 +25,7 @@ def _client_or_none():
     if enabled():
         try:
             import atexit
+
             from langfuse import get_client
             _client = get_client()
             atexit.register(flush)

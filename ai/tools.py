@@ -8,9 +8,8 @@ Tools the AI is allowed to call while it analyses a message.
 Gemini decides for itself whether and when to call these - we just
 describe them below and run whatever it asks for.
 """
-import re
 import concurrent.futures
-
+import re
 
 TOOL_DECLARATIONS = [
     {

@@ -1,7 +1,8 @@
 # run with: python -m pytest -q
 
-import app as app_module
 import pytest
+
+import app as app_module
 from helpers import analyze_content
 
 # judgement logic

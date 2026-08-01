@@ -17,7 +17,7 @@ import re
 
 import blocklist
 import semantic
-from keywords import CRITICAL, SCAM, HEALTH
+from keywords import CRITICAL, HEALTH, SCAM
 from normalize import compact, to_halfwidth
 
 # Risk levels (codes). We never have a "safe" level — only degrees of caution.
