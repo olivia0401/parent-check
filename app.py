@@ -209,8 +209,7 @@ def check():
     lang = current_lang()
     ai_result = None
     if _llm and _llm.available:
-        # LangGraph state-machine agent (agent.py keeps the original
-        # hand-rolled loop as a contrast; both share the same helpers).
+        # LangGraph state-machine agent; prompt/parse helpers live in agent.py.
         from ai import agent_graph as ai_agent
         rag = _rag_zh if lang == "zh" else _rag_en
         ai_result = ai_agent.analyze(content, lang, result["risk"], _llm, rag)
