@@ -1,9 +1,10 @@
 """
-LangGraph re-implementation of the scam-analysis agent.
+LangGraph state machine for the scam-analysis agent.
 
-The original hand-rolled `for _ in range(2)` loop in agent.py is kept as a
-readable contrast. This version expresses the exact same behaviour as an
-explicit LangGraph state machine:
+Two nodes drive a run: `reason` asks the model what to do next, and `tools`
+runs whatever tool the model requested. A conditional router loops back to
+`reason` after tools run, or ends the run once the model gives a verdict or the
+turn budget is spent:
 
         ┌─────────────────────────────────────────────┐
         │                                             │
@@ -15,25 +16,13 @@ explicit LangGraph state machine:
         ▼
        END
 
-Why this is worth doing over the ad-hoc loop:
-  * Named nodes + a conditional router make the control flow explicit and
-    inspectable instead of buried in a for-loop.
-  * The turn budget is enforced by the graph's edges, not an off-by-one
-    range() — the router simply refuses to go back to `reason` once the
-    budget is spent.
-  * A checkpointer records each step, so a run can be inspected or resumed.
-    We use an in-memory saver and delete the run's thread when it finishes
-    (a scam check is single-shot). In production you would swap in
-    LangGraph's SqliteSaver / PostgresSaver — this project already runs
-    Postgres — so runs survive a restart.
+Per-request dependencies (the llm client and the language's RAG engine) ride in
+the run config, not the graph state, because state is serialized by the
+checkpointer and these objects aren't serializable. The checkpointer is an
+in-memory saver whose thread is deleted once a run finishes.
 
-Per-request dependencies (the llm client and the language's RAG engine) are
-passed through the run *config*, not the graph *state*: state is serialized
-by the checkpointer, and these objects aren't serializable (and shouldn't be
-persisted anyway).
-
-The safety invariants are unchanged and still live in agent.py:
-  * risk can only ever be pushed UP (pick_higher_risk),
+Shared prompt/parsing helpers live in agent.py. Safety invariants:
+  * risk can only ever be pushed up (pick_higher_risk),
   * any failure falls back to the rule-based verdict (returns None),
   * user text is wrapped as data to blunt prompt injection.
 """
@@ -199,8 +188,8 @@ def analyze(content, lang, existing_risk, llm, rag):
         final_state = graph.invoke(initial, config)
         return final_state.get("result")
     except Exception:
-        # Same fail-safe as the original: a broken AI step must never lower
-        # the rule-based verdict. Log the type (never the user's text).
+        # Fail-safe: a broken AI step must never lower the rule-based verdict.
+        # Log the error type (never the user's text).
         logger.warning("LangGraph AI step failed (keeping rule-based result)", exc_info=True)
         return None
     finally:

@@ -2,17 +2,17 @@
 
 [![ScamShield for Parents — a bilingual scam-safety AI agent, live on AWS](static/og-image.png)](https://16.61.100.161.sslip.io)
 
-**A hybrid scam-safety AI agent: a deterministic risk floor + a Gemini
-tool-calling agent orchestrated with LangGraph + bilingual pgvector RAG,
-behind a JSON API with a Next.js/TypeScript frontend.**
+**A bilingual web app that helps older adults check whether a message, link,
+or health claim looks like a scam.** It pairs fast, predictable keyword rules
+with an optional AI second opinion, served by a Flask backend with a JSON API
+and a Next.js frontend.
 
-**▶ Live:** [16.61.100.161.sslip.io](https://16.61.100.161.sslip.io) — the full
-production stack on **AWS EC2** (Docker Compose + Caddy auto-HTTPS, real
-Postgres/pgvector + Redis). Also on Render:
+**▶ Live:** [16.61.100.161.sslip.io](https://16.61.100.161.sslip.io). This is the
+full production stack on **AWS EC2**: Docker Compose, Caddy for auto-HTTPS, and a
+real Postgres/pgvector + Redis. Also on Render:
 [parent-check.onrender.com](https://parent-check.onrender.com).
 
-**🎥 CS50x Final Project Demo Video:** TODO — paste unlisted YouTube link here
-after recording (e.g. `https://youtu.be/XXXXXXXXXXX`).
+**🎥 CS50x Final Project Demo Video:** https://youtu.be/uv2f2eLGcSw
 
 #### What it is
 

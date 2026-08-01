@@ -6,12 +6,10 @@
 # keywords). The actual words shown to the user are looked up later in
 # translations.py, so the same saved check can be displayed in Chinese or English.
 #
-# This is the deterministic SAFETY FLOOR of a layered system, not the whole story.
-# In a high-stakes setting (scams, medication) an explainable, predictable rule is
-# the trustworthy lower bound: we can always tell the user exactly WHY we flagged
-# something. The Gemini tool-calling agent in ai/agent.py runs on top of this floor
-# as a second-opinion pass, but — by design — it can only RAISE the risk this layer
-# reports, never lower it. See the README ("Architecture: a layered safety system").
+# This layer is the deterministic floor of the system: an explainable rule we can
+# always justify to the user. The Gemini agent (ai/agent_graph.py) runs on top as a
+# second opinion, and by design can only raise the risk this layer reports, never
+# lower it. See the README ("Architecture: a layered safety system").
 
 import re
 
