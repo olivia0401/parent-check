@@ -1,13 +1,13 @@
 # 爸妈求证 (ScamShield for Parents)
 
-[![ScamShield for Parents — a bilingual scam-safety AI agent, live on AWS](static/og-image.png)](https://16.61.100.161.sslip.io)
+[![ScamShield for Parents — a bilingual scam-safety AI agent, live on AWS](static/og-image.png)](https://parentcheck.duckdns.org)
 
 **A bilingual web app that helps older adults check whether a message, link,
 or health claim looks like a scam.** It pairs fast, predictable keyword rules
 with an optional AI second opinion, served by a Flask backend with a JSON API
 and a Next.js frontend.
 
-**▶ Live:** [16.61.100.161.sslip.io](https://16.61.100.161.sslip.io). This is the
+**▶ Live:** [parentcheck.duckdns.org](https://parentcheck.duckdns.org). This is the
 full production stack on **AWS EC2**: Docker Compose, Caddy for auto-HTTPS, and a
 real Postgres/pgvector + Redis. Also on Render:
 [parent-check.onrender.com](https://parent-check.onrender.com).
@@ -20,7 +20,8 @@ real Postgres/pgvector + Redis. Also on Render:
 people — in my case, Chinese-speaking seniors living in the UK — pause and get a
 second opinion when they see something they aren't sure about: a health article,
 a miracle-cure advert, a suspicious text, or a strange link. The user pastes the
-text, picks where it came from, and the app returns a **conservative** verdict,
+text — or a link, or a **screenshot** of the message — picks where it came from,
+and the app returns a **conservative** verdict,
 points out exactly which signals looked risky, says what *not* to do right now,
 and — most importantly — drafts a short message they can forward to their adult
 children to confirm.
@@ -56,6 +57,15 @@ them. They receive *both* Chinese health rumours and English UK scam texts.
 
 A single message flows through the pipeline top to bottom. Each layer can only
 **raise** the risk level; none can lower it.
+
+The input can arrive three ways — pasted text, a pasted **link** (fetched and
+stripped to its article text, with SSRF protection), or an uploaded
+**screenshot** (`ocr.py`) — all converging on the same `content` string before
+it enters the pipeline below, so the analysis can't diverge by input type.
+Screenshot OCR uses a multimodal model (Gemini vision) by default, with **Azure
+Document Intelligence** (`prebuilt-read`) as a drop-in enterprise backend when
+`AZURE_DOC_INTEL_*` is configured; it degrades gracefully like every other AI
+layer here.
 
 ```
 user text ──► [1] normalise ──► [2] deterministic rule engine ──► base risk
@@ -288,6 +298,9 @@ Next.js (TS) ──fetch──► POST /api/check (Flask, CORS-scoped) ──►
   learned-model slot (escalate-only, off by default).
 - **fetch_url.py** — fetches and extracts article text from a pasted link, with
   SSRF protection that re-validates the host **after redirects**.
+- **ocr.py** — extracts the text from an uploaded screenshot so it can run
+  through the same pipeline; Gemini vision by default, Azure Document
+  Intelligence as an enterprise backend, degrading gracefully on failure.
 - **normalize.py** — text folding so spaced-out / full-width evasions still match.
 - **translations.py** — every user-facing string in Chinese and English, keyed
   by code, so even saved history re-renders in either language.
@@ -406,10 +419,10 @@ the deterministic floor and the AI/RAG step simply stays off; `SEMANTIC_MODEL=1`
 
 This is a prototype, and it's deliberately conservative about scope: it doesn't
 read messages automatically, handle payments, or give medical advice. Natural
-next steps, all behind the same escalate-only, privacy-preserving contract: OCR
-for uploaded screenshots, growing the RAG corpus from confirmed cases (the
-`add_case` path already exists), a feedback loop that learns from the "was this
-helpful?" signal, and real notifications to family members. The bigger product
+next steps, all behind the same escalate-only, privacy-preserving contract:
+growing the RAG corpus from confirmed cases (the `add_case` path already
+exists), a feedback loop that learns from the "was this helpful?" signal, and
+real notifications to family members. The bigger product
 bet is to shift the primary user toward the *adult child* — the person who
 actually helps a parent verify a suspicious message — because turning a lonely
 yes/no into a family conversation is the real value, more than any single model.
