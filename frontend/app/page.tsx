@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { CheckResponse, Lang, Source } from "@/lib/types";
 import { UI } from "@/lib/i18n";
-import { checkMessage } from "@/lib/api";
+import { checkMessage, checkImage } from "@/lib/api";
 import ResultCard from "@/components/ResultCard";
 
 const SOURCES: Source[] = [
@@ -20,8 +20,18 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CheckResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const t = UI[lang];
+
+  // Swap in a new preview (an object URL for the picked file) and free the old
+  // one. Pass null to clear it, e.g. when the user runs a text check instead.
+  function showPreview(file: File | null) {
+    setImagePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return file ? URL.createObjectURL(file) : null;
+    });
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,8 +39,27 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setResult(null);
+    showPreview(null); // a text check has no screenshot
     try {
       const res = await checkMessage({ content, source, lang });
+      setResult(res);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // reset so picking the same file again still fires
+    if (!file || loading) return;
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    showPreview(file); // show the uploaded screenshot right away
+    try {
+      const res = await checkImage(file, source, lang);
       setResult(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -85,6 +114,22 @@ export default function Home() {
         />
 
         <label
+          htmlFor="screenshot"
+          className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-500 transition hover:border-slate-900 hover:text-slate-900 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+          aria-disabled={loading}
+        >
+          {t.uploadLabel}
+        </label>
+        <input
+          id="screenshot"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          onChange={onImage}
+          disabled={loading}
+          className="hidden"
+        />
+
+        <label
           htmlFor="source"
           className="mt-4 block text-sm font-semibold text-slate-700"
         >
@@ -111,6 +156,20 @@ export default function Home() {
           {loading ? t.checking : t.submit}
         </button>
       </form>
+
+      {imagePreview && (
+        <figure className="mt-6 overflow-hidden rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+          <figcaption className="mb-2 px-1 text-sm font-semibold text-slate-700">
+            {t.uploadedLabel}
+          </figcaption>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imagePreview}
+            alt={t.uploadedLabel}
+            className="mx-auto max-h-96 w-auto rounded-xl"
+          />
+        </figure>
+      )}
 
       {error && (
         <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4">

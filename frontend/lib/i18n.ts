@@ -8,6 +8,8 @@ export const UI: Record<Lang, {
   tagline: string;
   inputLabel: string;
   placeholder: string;
+  uploadLabel: string;
+  uploadedLabel: string;
   sourceLabel: string;
   submit: string;
   checking: string;
@@ -26,6 +28,8 @@ export const UI: Record<Lang, {
     tagline: "把可疑的短信、链接或养生广告贴进来，几秒钟得到通俗的风险判断。",
     inputLabel: "要检查的内容",
     placeholder: "粘贴短信、链接或广告文字……",
+    uploadLabel: "或上传截图（短信 / 微信 / 邮件）",
+    uploadedLabel: "你上传的截图",
     sourceLabel: "内容来源",
     submit: "开始检查",
     checking: "检查中……",
@@ -50,6 +54,8 @@ export const UI: Record<Lang, {
       "Paste a suspicious message, link or health ad and get a plain-language risk check in seconds.",
     inputLabel: "Content to check",
     placeholder: "Paste a message, link or ad text…",
+    uploadLabel: "Or upload a screenshot (SMS / chat / email)",
+    uploadedLabel: "Your screenshot",
     sourceLabel: "Where is it from?",
     submit: "Check it",
     checking: "Checking…",

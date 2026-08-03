@@ -13,6 +13,7 @@ from flask_cors import CORS
 
 import db
 import observability
+import ocr
 import repo
 from fetch_url import fetch_article, is_url
 from helpers import analyze_content, build_view
@@ -202,6 +203,17 @@ def check():
                 prefill=request.form.get("content", ""),
             )
 
+    return _render_check(content, source, fetched_title)
+
+
+def _render_check(content, source, fetched_title="", ocr_text=""):
+    """
+    Shared core for the HTML routes: run the pipeline on `content`, store the
+    verdict and render the result page. Used by /check (text / URL) and
+    /check-image (screenshot OCR), so they behave identically: rule engine ->
+    optional LangGraph AI second opinion (raises risk only) -> stored result.
+    `ocr_text` is shown on the result page when the content came from an image.
+    """
     result = analyze_content(content, source)
 
     # Optional second opinion from Gemini. Stays None if it's not configured
@@ -255,7 +267,89 @@ def check():
         actions=ai_result["actions"] if ai_result else [],
         emergency_number=current_region()["hotline"],
         fetched_title=fetched_title,
+        ocr_text=ocr_text,
     )
+
+
+@app.route("/check-image", methods=["POST"])
+def check_image():
+    """
+    OCR an uploaded screenshot, then run the exact same check as /check.
+
+    Mirrors the URL flow: just as a pasted link is fetched to text before
+    analysis, an uploaded image is OCR'd to text first. On any OCR failure it
+    re-renders the home page with a friendly message (same slot as url_error).
+    """
+    source = request.form.get("source") or "suspicious_msg"
+    if source not in SOURCE_CODES:
+        source = "suspicious_msg"
+
+    file = request.files.get("image")
+    if file is None or not file.filename:
+        return redirect(url_for("index"))
+
+    image_bytes = file.read(ocr.MAX_BYTES + 1)
+    ocr_result = ocr.extract_text(image_bytes, file.mimetype, _llm)
+    if not ocr_result["ok"]:
+        error_key = {
+            "unsupported": "image_error_unsupported",
+            "too_large":   "image_error_too_large",
+            "no_text":     "image_error_no_text",
+        }.get(ocr_result["error"], "image_error_failed")
+        return render_template(
+            "index.html",
+            sources=SOURCE_CODES,
+            url_error=TRANSLATIONS[current_lang()][error_key],
+        )
+
+    content = ocr_result["text"].strip()[:MAX_CONTENT]
+    app.logger.info(
+        "check-image ocr_engine=%s chars=%d", ocr_result["engine"], len(content)
+    )
+    return _render_check(content, source, ocr_text=content)
+
+
+def _analyze_json(content, source, lang, fetched_title=""):
+    """
+    Shared core for the JSON API: run the pipeline on `content` and return the
+    verdict as a Flask JSON response. Used by both /api/check (text / URL) and
+    /api/check-image (screenshot OCR), so they stay behaviourally identical:
+    rule engine -> optional LangGraph AI second opinion (raises risk only) ->
+    view builder.
+    """
+    result = analyze_content(content, source)
+
+    ai_result = None
+    if _llm and _llm.available:
+        from ai import agent_graph as ai_agent
+        rag = _rag_zh if lang == "zh" else _rag_en
+        ai_result = ai_agent.analyze(content, lang, result["risk"], _llm, rag)
+    if ai_result:
+        result["risk"] = ai_result["ai_risk"]  # only ever raises the risk
+
+    app.logger.info(
+        "api check verdict=%s category=%s source=%s ai=%s",
+        result["risk"], result["category"], source, "yes" if ai_result else "no",
+    )
+
+    t = TRANSLATIONS[lang]
+    view = build_view(t, result["risk"], result["category"], result["reasons"], source)
+
+    return jsonify({
+        "risk": result["risk"],
+        "category": result["category"],
+        "reasons": view["reasons"],
+        "summary": view["summary"],
+        "advice": view["advice"],
+        "child_message": view["child_message"],
+        "ai_reason": ai_result["reason"] if ai_result else "",
+        "ai_advice": ai_result["advice"] if ai_result else "",
+        "ai_tools": ai_result.get("tools_called", []) if ai_result else [],
+        "actions": ai_result["actions"] if ai_result else [],
+        "emergency_number": current_region()["hotline"],
+        "fetched_title": fetched_title,
+        "used_ai": bool(ai_result),
+    })
 
 
 @app.route("/api/check", methods=["POST"])
@@ -295,39 +389,47 @@ def api_check():
             return jsonify({"error": "url_fetch_failed",
                             "message": TRANSLATIONS[lang][error_key]}), 400
 
-    result = analyze_content(content, source)
+    return _analyze_json(content, source, lang, fetched_title)
 
-    ai_result = None
-    if _llm and _llm.available:
-        from ai import agent_graph as ai_agent
-        rag = _rag_zh if lang == "zh" else _rag_en
-        ai_result = ai_agent.analyze(content, lang, result["risk"], _llm, rag)
-    if ai_result:
-        result["risk"] = ai_result["ai_risk"]  # only ever raises the risk
 
+@app.route("/api/check-image", methods=["POST"])
+def api_check_image():
+    """
+    JSON API for screenshot checks, consumed by the Next.js frontend.
+
+    The user uploads an image (multipart/form-data) of a suspicious message,
+    email or ad; we OCR the text out of it, then run the exact same pipeline as
+    /api/check. This mirrors how a pasted URL is fetched to text before
+    analysis - the image is just another way to arrive at `content`.
+    """
+    source = request.form.get("source") or "suspicious_msg"
+    if source not in SOURCE_CODES:
+        source = "suspicious_msg"
+    req_lang = request.form.get("lang")
+    lang = req_lang if req_lang in TRANSLATIONS else "zh"
+
+    file = request.files.get("image")
+    if file is None or not file.filename:
+        return jsonify({"error": "empty_image"}), 400
+
+    # Read at most one byte past the cap - enough for ocr.extract_text to reject
+    # oversized uploads without pulling a huge file fully into memory.
+    image_bytes = file.read(ocr.MAX_BYTES + 1)
+    ocr_result = ocr.extract_text(image_bytes, file.mimetype, _llm)
+    if not ocr_result["ok"]:
+        error_key = {
+            "unsupported": "image_error_unsupported",
+            "too_large":   "image_error_too_large",
+            "no_text":     "image_error_no_text",
+        }.get(ocr_result["error"], "image_error_failed")
+        return jsonify({"error": "image_ocr_failed",
+                        "message": TRANSLATIONS[lang][error_key]}), 400
+
+    content = ocr_result["text"].strip()[:MAX_CONTENT]
     app.logger.info(
-        "api check verdict=%s category=%s source=%s ai=%s",
-        result["risk"], result["category"], source, "yes" if ai_result else "no",
+        "api check-image ocr_engine=%s chars=%d", ocr_result["engine"], len(content)
     )
-
-    t = TRANSLATIONS[lang]
-    view = build_view(t, result["risk"], result["category"], result["reasons"], source)
-
-    return jsonify({
-        "risk": result["risk"],
-        "category": result["category"],
-        "reasons": view["reasons"],
-        "summary": view["summary"],
-        "advice": view["advice"],
-        "child_message": view["child_message"],
-        "ai_reason": ai_result["reason"] if ai_result else "",
-        "ai_advice": ai_result["advice"] if ai_result else "",
-        "ai_tools": ai_result.get("tools_called", []) if ai_result else [],
-        "actions": ai_result["actions"] if ai_result else [],
-        "emergency_number": current_region()["hotline"],
-        "fetched_title": fetched_title,
-        "used_ai": bool(ai_result),
-    })
+    return _analyze_json(content, source, lang)
 
 
 @app.route("/history")

@@ -6,6 +6,13 @@
     <p class="fetched-label">{{ t.url_fetched_label }} <em>{{ fetched_title }}</em></p>
   {% endif %}
 
+  {% if ocr_text %}
+    <details class="ocr-read">
+      <summary>{{ t.ocr_read_label }}</summary>
+      <p class="ocr-text">{{ ocr_text }}</p>
+    </details>
+  {% endif %}
+
   <div class="risk-card {{ risk }}">
     <p class="risk-label">{{ t.result_label }}</p>
     <h1 class="risk-text">{{ t.risk[risk] }}</h1>
