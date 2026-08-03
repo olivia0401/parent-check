@@ -9,6 +9,7 @@ If anything goes wrong (no API key, network error, bad response) every
 method just returns None, so the rest of the app can carry on without
 the AI step.
 """
+import base64
 import os
 import time
 
@@ -134,6 +135,60 @@ class LLMClient:
         except Exception:
             llm_trace.log_generation(
                 "scam.agent", messages, None, model="gemini-flash-lite-latest",
+                latency_s=time.monotonic() - t0, metadata={"error": True},
+            )
+            return None
+
+    def read_image_text(self, image_bytes, mime_type):
+        """
+        OCR: read every piece of text visible in an image (a screenshot of a
+        message, email or ad) and return it as plain text, in its original
+        language. Returns None on failure or if no API key is set, so ocr.py can
+        fall back or show a friendly error.
+
+        Gemini Flash is multimodal, so this is just generate() with an extra
+        inline-image part alongside the prompt - no new dependency needed.
+        """
+        if not self.available:
+            return None
+        t0 = time.monotonic()
+        prompt = (
+            "Extract ALL text visible in this image exactly as it appears, "
+            "keeping the original language. Return only the raw text, with no "
+            "commentary, labels or translation. If there is no text, return nothing."
+        )
+        try:
+            resp = requests.post(
+                f"{GENERATE_URL}?key={self.api_key}",
+                json={
+                    "contents": [{"parts": [
+                        {"text": prompt},
+                        {"inlineData": {
+                            "mimeType": mime_type,
+                            "data": base64.b64encode(image_bytes).decode(),
+                        }},
+                    ]}],
+                    # NB: no thinkingConfig here. Unlike the text endpoints, the
+                    # multimodal (image) request rejects thinkingBudget=0 with a
+                    # 400 "invalid argument", so we let the model use its default.
+                    "generationConfig": {
+                        "temperature": 0,
+                        "maxOutputTokens": 800,
+                    },
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            text = body["candidates"][0]["content"]["parts"][0]["text"]
+            llm_trace.log_generation(
+                "scam.ocr", "[image]", text, model="gemini-flash-lite-latest",
+                latency_s=time.monotonic() - t0, usage=_usage(body),
+            )
+            return text.strip()
+        except Exception:
+            llm_trace.log_generation(
+                "scam.ocr", "[image]", None, model="gemini-flash-lite-latest",
                 latency_s=time.monotonic() - t0, metadata={"error": True},
             )
             return None

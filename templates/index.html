@@ -33,6 +33,42 @@
     <button type="submit" class="big-button">{{ t.submit }}</button>
   </form>
 
+  <!-- Or upload a screenshot: OCR reads the text out of it, then the same
+       pipeline runs on that text. Auto-submits as soon as a file is picked. -->
+  <form
+    action="{{ url_for('check_image') }}"
+    method="post"
+    enctype="multipart/form-data"
+    class="upload-form"
+    id="upload-form"
+  >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <input type="hidden" name="source" value="suspicious_msg" />
+    <label for="screenshot" class="upload-label">{{ t.upload_label }}</label>
+    <input
+      type="file"
+      id="screenshot"
+      name="image"
+      accept="image/png,image/jpeg,image/webp"
+      class="upload-input"
+      data-reading="{{ t.image_reading }}"
+      onchange="onScreenshotPicked(this)"
+    />
+    <p class="upload-status" id="upload-status" hidden></p>
+  </form>
+
+  <script>
+    // Auto-submit once a screenshot is chosen, and show a "reading…" note so
+    // the (few-second) OCR round-trip doesn't feel like nothing happened.
+    function onScreenshotPicked(input) {
+      if (!input.files || !input.files.length) return;
+      var status = document.getElementById("upload-status");
+      status.textContent = input.getAttribute("data-reading") || "Reading the image…";
+      status.hidden = false;
+      document.getElementById("upload-form").submit();
+    }
+  </script>
+
   <p class="trust">{{ t.trust_line }}</p>
 
   <!-- one-tap examples: fill the form so first-time users can see it work -->
