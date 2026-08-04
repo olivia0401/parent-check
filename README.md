@@ -12,7 +12,7 @@ full production stack on **AWS EC2**: Docker Compose, Caddy for auto-HTTPS, and 
 real Postgres/pgvector + Redis. Also on Render:
 [parent-check.onrender.com](https://parent-check.onrender.com).
 
-**🎥 CS50x Final Project Demo Video:** https://youtu.be/uv2f2eLGcSw
+
 
 #### What it is
 
