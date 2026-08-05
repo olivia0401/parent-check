@@ -39,3 +39,8 @@ jobs:
         # Fails the build if classifier quality regresses below thresholds
         # (accuracy / scam recall / missed scams / false alarms). See evaluate.py.
         run: python evaluate.py
+      - name: Image-path eval
+        # End-to-end screenshot -> OCR -> pipeline gate. Skips cleanly (exit 0)
+        # when no OCR key is configured; enforces the gate once one is. The
+        # deterministic wiring is covered by tests/test_check_image.py above.
+        run: python evaluate_images.py

@@ -11,3 +11,9 @@ prompt test/
 
 # local agent/editor config — never commit
 .claude/
+
+# Local learning course (CS50-style walkthrough of the AI code) — kept local only
+learn/
+
+# Stray image accidentally dropped into the repo root — not part of the project
+1784253014396.jpg

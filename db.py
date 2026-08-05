@@ -68,7 +68,13 @@ class Check(Base):
 
 class ScamCase(Base):
     """Scam-case knowledge base for RAG. `embedding` is a native pgvector column
-    rather than a JSON string, so retrieval is an indexed nearest-neighbour query."""
+    rather than a JSON string, so retrieval is an indexed nearest-neighbour query.
+
+    A long document (e.g. text OCR'd from an uploaded screenshot) is split into
+    overlapping passages before indexing, so one source case can span several rows.
+    Those rows share a `parent_id` and carry their `chunk_index`; retrieval collapses
+    them back to one hit per source case. A case that fits in a single chunk has
+    `parent_id = NULL` and `chunk_index = 0`."""
 
     __tablename__ = "scam_cases"
 
@@ -78,6 +84,9 @@ class ScamCase(Base):
     category: Mapped[str] = mapped_column(String(64), nullable=False)
     analysis: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float]] = mapped_column(Vector(EMBED_DIM), nullable=False)
+    # Chunk metadata: NULL parent_id means the case wasn't split.
+    parent_id: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
@@ -100,3 +109,16 @@ def init_db():
     with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     Base.metadata.create_all(engine)
+    # Backfill the chunk-metadata columns on a scam_cases table created before
+    # chunking existed. ADD COLUMN IF NOT EXISTS keeps this idempotent, matching
+    # the zero-config spirit of create_all above (Alembic owns prod migrations).
+    with engine.begin() as conn:
+        conn.execute(text(
+            "ALTER TABLE scam_cases ADD COLUMN IF NOT EXISTS parent_id VARCHAR(64)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE scam_cases ADD COLUMN IF NOT EXISTS chunk_index INTEGER NOT NULL DEFAULT 0"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_scam_cases_parent_id ON scam_cases (parent_id)"
+        ))

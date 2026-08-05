@@ -17,7 +17,8 @@ TOOL_DECLARATIONS = [
         "description": (
             "Search the scam case knowledge base for similar known scams. "
             "Use this to find cases that structurally or semantically match "
-            "the message being analysed."
+            "the message being analysed. Optionally pass a category to restrict "
+            "the search to one scam type."
         ),
         "parameters": {
             "type": "object",
@@ -25,7 +26,14 @@ TOOL_DECLARATIONS = [
                 "text": {
                     "type": "string",
                     "description": "The message or key phrase to search for similar scam cases.",
-                }
+                },
+                "category": {
+                    "type": "string",
+                    "description": (
+                        "Optional scam-type label to filter the search by "
+                        "(metadata filter), e.g. only look up impersonation cases."
+                    ),
+                },
             },
             "required": ["text"],
         },
@@ -51,9 +59,12 @@ TOOL_DECLARATIONS = [
 ]
 
 
-def execute_query_rag(text, rag, lang):
-    """Look up similar scam cases and turn them into a short summary for the AI."""
-    cases = rag.retrieve_similar(text, n=3)
+def execute_query_rag(text, rag, lang, category=None):
+    """Look up similar scam cases and turn them into a short summary for the AI.
+
+    `category`, when the model supplies it, narrows the search to one scam type
+    (metadata filtering)."""
+    cases = rag.retrieve_similar(text, n=3, category=category)
     if not cases:
         if lang == "zh":
             return {"found": False, "summary": "知识库中未找到类似案例。"}
@@ -144,7 +155,7 @@ def run_tools_parallel(calls, rag, lang, original_text):
         text = args.get("text", original_text)
         try:
             if name == "query_knowledge_base":
-                result = execute_query_rag(text, rag, lang)
+                result = execute_query_rag(text, rag, lang, args.get("category"))
             elif name == "check_phone_numbers":
                 result = execute_check_phone(text, lang)
             else:
