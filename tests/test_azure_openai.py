@@ -64,7 +64,10 @@ def test_generate_routes_to_azure_when_configured(monkeypatch):
     _clear(monkeypatch)
     _set_azure(monkeypatch)
     c = LLMClient()
-    monkeypatch.setattr(c, "_azure_generate", lambda prompt, temperature=0.3: "FROM_AZURE")
+    monkeypatch.setattr(
+        c, "_azure_generate",
+        lambda prompt, temperature=0.3, trace_label="scam.generate": "FROM_AZURE",
+    )
     assert c.generate("hi") == "FROM_AZURE"
 
 

@@ -1,10 +1,12 @@
 """
 LangGraph state machine for the scam-analysis agent.
 
-Two nodes drive a run: `reason` asks the model what to do next, and `tools`
-runs whatever tool the model requested. A conditional router loops back to
-`reason` after tools run, or ends the run once the model gives a verdict or the
-turn budget is spent:
+This is a small **multi-agent** pipeline. An *analyst* agent drives the run:
+`reason` asks the model what to do next, and `tools` runs whatever tool it
+requested; a conditional router loops back to `reason` after tools run. Once the
+analyst commits to a verdict, an independent *verifier* agent re-reads the
+original message and the analyst's verdict, hunting for anything the analyst
+waved through — and, like every layer here, it may only raise the risk:
 
         ┌─────────────────────────────────────────────┐
         │                                             │
@@ -12,21 +14,33 @@ turn budget is spent:
     ┌────────┐   wants a tool?   ┌────────┐           │
     │ reason │ ───────────────▶  │ tools  │ ──────────┘
     └────────┘                   └────────┘
-        │  final verdict / done
+        │  verdict ready
+        ▼
+    ┌────────┐   escalate-only second opinion
+    │ verify │
+    └────────┘
+        │
         ▼
        END
+
+(The analyst falls straight to END when its AI step fails, so the caller drops
+to the rule-based verdict without a pointless verifier call.)
 
 Per-request dependencies (the llm client and the language's RAG engine) ride in
 the run config, not the graph state, because state is serialized by the
 checkpointer and these objects aren't serializable. The checkpointer is an
 in-memory saver whose thread is deleted once a run finishes.
 
-Shared prompt/parsing helpers live in agent.py. Safety invariants:
-  * risk can only ever be pushed up (pick_higher_risk),
-  * any failure falls back to the rule-based verdict (returns None),
+Shared prompt/parsing helpers live in agent.py (analyst) and verifier.py
+(verifier). Safety invariants:
+  * risk can only ever be pushed up (pick_higher_risk) — by the analyst AND the
+    verifier,
+  * any failure falls back to the rule-based verdict (returns None) or, for the
+    verifier, leaves the analyst verdict untouched,
   * user text is wrapped as data to blunt prompt injection.
 """
 import logging
+import os
 import uuid
 from typing import TypedDict
 
@@ -40,12 +54,20 @@ from .agent import (
     pick_higher_risk,
 )
 from .tools import TOOL_DECLARATIONS, run_tools_parallel
+from .verifier import build_verifier_prompt, parse_verifier_reply
 
 logger = logging.getLogger(__name__)
 
 # The model gets at most this many reasoning turns: one to (optionally) call
 # tools, one to give its final verdict. Enforced by the router below.
 MAX_REASON_TURNS = 2
+
+
+def _verifier_enabled():
+    """The verifier agent is on by default; set ENABLE_VERIFIER=0 to turn the
+    second independent pass off (e.g. to halve LLM calls on a tight free tier).
+    Read at call time so it can be toggled per deployment and in tests."""
+    return os.environ.get("ENABLE_VERIFIER", "1").strip().lower() not in ("0", "false", "no", "")
 
 
 class AgentState(TypedDict):
@@ -125,10 +147,53 @@ def tools_node(state: AgentState, config) -> dict:
     }
 
 
+def verify_node(state: AgentState, config) -> dict:
+    """Independent second-agent review of the analyst's verdict (escalate-only).
+
+    Runs one tool-free `llm.generate()` pass through the verifier prompt. It can
+    push the risk up and, when it does, replaces the reason/advice with the
+    verifier's; it can never lower the risk. Anything that goes wrong — verifier
+    disabled, no reply, unparseable output, or no genuine escalation — leaves the
+    analyst's verdict exactly as it was.
+    """
+    result = state.get("result")
+    # Nothing to review (AI step failed), or already at the ceiling where the
+    # verifier could not escalate further — skip the extra call.
+    if not result or result.get("ai_risk") == "danger" or not _verifier_enabled():
+        return {}
+
+    llm = config["configurable"]["llm"]
+    reply = llm.generate(
+        build_verifier_prompt(state["content"], state["lang"], result),
+        temperature=0.0,
+        trace_label="scam.verify",
+    )
+    escalation = parse_verifier_reply(reply, state["lang"])
+    if escalation is None:
+        return {}  # verifier agrees → keep the analyst verdict
+
+    new_risk = pick_higher_risk(result["ai_risk"], escalation["ai_risk"])
+    if new_risk == result["ai_risk"]:
+        return {}  # verifier didn't actually raise it → keep the analyst verdict
+
+    merged = {
+        **result,
+        "ai_risk": new_risk,
+        "reason": escalation["reason"] or result.get("reason", ""),
+        "advice": escalation["advice"] or result.get("advice", ""),
+        "actions": decide_actions(new_risk),
+        "tools_called": result.get("tools_called", []) + ["verifier"],
+    }
+    return {"result": merged}
+
+
 def _route_after_reason(state: AgentState) -> str:
     """Decide where to go after the model reasons."""
     if state.get("done"):
-        return END
+        # A successful analyst verdict gets an independent verifier review; a
+        # failed AI step (result is None) falls straight through to the
+        # rule-based fallback with no extra call.
+        return "verify" if state.get("result") else END
     if state.get("pending_calls"):
         # Only loop back for tools if we still have a turn left to read them.
         if state["turns"] >= MAX_REASON_TURNS:
@@ -141,9 +206,14 @@ def _build_graph(checkpointer):
     graph = StateGraph(AgentState)
     graph.add_node("reason", reason_node)
     graph.add_node("tools", tools_node)
+    graph.add_node("verify", verify_node)
     graph.set_entry_point("reason")
-    graph.add_conditional_edges("reason", _route_after_reason, {"tools": "tools", END: END})
+    graph.add_conditional_edges(
+        "reason", _route_after_reason,
+        {"tools": "tools", "verify": "verify", END: END},
+    )
     graph.add_edge("tools", "reason")
+    graph.add_edge("verify", END)
     return graph.compile(checkpointer=checkpointer)
 
 
