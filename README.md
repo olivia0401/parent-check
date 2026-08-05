@@ -73,11 +73,14 @@ user text ──► [1] normalise ──► [2] deterministic rule engine ──
                                                                         │
                                             base risk (the safety floor)│
                                                                         ▼
-              final risk ◄── [3] Gemini tool-calling agent (escalate-only)
+                          [3] analyst agent  (tool-calling, escalate-only)
                                     │        │
                                     ▼        ▼
                         query_knowledge_base   check_phone_numbers
                              (bilingual RAG)      (number classifier)
+                                    │  candidate verdict
+                                    ▼
+              final risk ◄── [4] verifier agent (independent, escalate-only)
 ```
 
 **[1] Normalisation** (`normalize.py`) folds text to a compact form (full-width→
@@ -92,11 +95,20 @@ new-number + money + urgency) by the co-occurrence of structural signals. This
 layer is the **safety floor** — it runs with no API key, no network, and its
 output is a lower bound on the final risk.
 
-**[3] The Gemini agent** (`ai/agent_graph.py`) takes a second look *only* to find
+**[3] The analyst agent** (`ai/agent_graph.py`) takes a second look *only* to find
 what the rules missed. It is a genuine tool-calling agent, not a one-shot prompt:
 given the message, it decides whether it needs more evidence, calls tools, reads
-the results, and then commits to a verdict — bounded to raising the risk. The
-loop is a **LangGraph state machine** (see below).
+the results, and then commits to a candidate verdict — bounded to raising the risk.
+
+**[4] The verifier agent** (`ai/verifier.py`) is a second, independent agent. It
+re-reads the original message together with the analyst's verdict and looks for
+anything the analyst let through. It's its own `llm.generate()` call with a
+separate prompt and no tools — a fresh pair of eyes catches more than asking the
+first agent "are you sure?". Same rule as every other layer: it can raise the
+risk, never lower it, and if it errors or is switched off (`ENABLE_VERIFIER=0`)
+the analyst's verdict stands. It's skipped when the risk is already maxed out. So
+[3] and [4] together are a small **multi-agent** setup — one proposes a verdict,
+one checks it — wired as a **LangGraph state machine** (see below).
 
 Verdicts are worded to avoid false reassurance. There are three, and none of
 them is the word "safe":
@@ -105,10 +117,11 @@ them is the word "safe":
 - **要小心** — be careful
 - **很可能有问题** — very likely a problem
 
-## The agent — a LangGraph state machine (`ai/agent_graph.py`)
+## The agents — a LangGraph state machine (`ai/agent_graph.py`)
 
-The agent loop is a **LangGraph** `StateGraph` with two nodes and a conditional
-router, rather than a hand-rolled loop:
+The pipeline is a **LangGraph** `StateGraph` with three nodes and a conditional
+router, rather than a hand-rolled loop. The analyst drives a `reason ↔ tools`
+loop; once it has a verdict, an independent `verify` node runs the second agent:
 
 ```
         ┌───────────────────────────────────────┐
@@ -116,10 +129,18 @@ router, rather than a hand-rolled loop:
    ┌────────┐   wants a tool?   ┌────────┐        │
    │ reason │ ───────────────►  │ tools  │ ───────┘
    └────────┘                   └────────┘
-        │  final verdict
+        │  candidate verdict
+        ▼
+   ┌────────┐   independent, escalate-only second opinion
+   │ verify │
+   └────────┘
+        │
         ▼
        END
 ```
+
+(If the analyst's AI step fails, the router skips `verify` and falls straight to
+the rule-based verdict — no wasted call.)
 
 1. The user message is wrapped in `<message>` tags and explicitly labelled as
    **data, not instructions**, with a directive to ignore anything inside it that
@@ -137,6 +158,10 @@ router, rather than a hand-rolled loop:
    off-by-one `for` loop. The reply is parsed into `{risk, reason, advice}` and
    `pick_higher_risk()` merges it with the rule-based floor, so the agent can only
    ever escalate.
+5. The **`verify`** node then runs the verifier agent on that verdict. Its result
+   is merged with the same `pick_higher_risk()`, so it can only push the risk up;
+   a failed or disabled verifier changes nothing. The router only reaches `verify`
+   on a real verdict, and skips the call when the risk is already maxed.
 
 Per-request dependencies (the Gemini client, the language's RAG engine) are
 injected through the run **config**, not the serialized state; a checkpointer

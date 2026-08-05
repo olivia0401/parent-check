@@ -96,11 +96,13 @@ class LLMClient:
         """True if either provider can serve requests."""
         return bool(self.api_key) or _azure_openai_config() is not None
 
-    def generate(self, prompt, temperature=0.3):
+    def generate(self, prompt, temperature=0.3, trace_label="scam.generate"):
         """Send a plain text prompt and get back the text reply (or None).
-        Routes to Azure OpenAI when configured, else Gemini."""
+        Routes to Azure OpenAI when configured, else Gemini. `trace_label` tags
+        the observability span so distinct callers (e.g. the verifier agent) show
+        up separately from generic generations."""
         if _azure_openai_config() is not None:
-            return self._azure_generate(prompt, temperature)
+            return self._azure_generate(prompt, temperature, trace_label)
         if not self.api_key:
             return None
         t0 = time.monotonic()
@@ -123,13 +125,13 @@ class LLMClient:
             body = resp.json()
             text = body["candidates"][0]["content"]["parts"][0]["text"]
             llm_trace.log_generation(
-                "scam.generate", prompt, text, model="gemini-flash-lite-latest",
+                trace_label, prompt, text, model="gemini-flash-lite-latest",
                 latency_s=time.monotonic() - t0, usage=_usage(body),
             )
             return text
         except Exception:
             llm_trace.log_generation(
-                "scam.generate", prompt, None, model="gemini-flash-lite-latest",
+                trace_label, prompt, None, model="gemini-flash-lite-latest",
                 latency_s=time.monotonic() - t0, metadata={"error": True},
             )
             return None
@@ -281,7 +283,7 @@ class LLMClient:
     # REST calls (api-key header, deployment in the path); same graceful-failure
     # contract as the Gemini methods above.
 
-    def _azure_generate(self, prompt, temperature=0.3):
+    def _azure_generate(self, prompt, temperature=0.3, trace_label="scam.generate"):
         """Text generation via an Azure OpenAI chat-completions deployment."""
         cfg = _azure_openai_config()
         if cfg is None:
@@ -306,13 +308,13 @@ class LLMClient:
             body = resp.json()
             text = body["choices"][0]["message"]["content"]
             llm_trace.log_generation(
-                "scam.generate", prompt, text, model=f"azure:{cfg['chat']}",
+                trace_label, prompt, text, model=f"azure:{cfg['chat']}",
                 latency_s=time.monotonic() - t0, usage=_azure_usage(body),
             )
             return text
         except Exception:
             llm_trace.log_generation(
-                "scam.generate", prompt, None, model=f"azure:{cfg['chat']}",
+                trace_label, prompt, None, model=f"azure:{cfg['chat']}",
                 latency_s=time.monotonic() - t0, metadata={"error": True},
             )
             return None
