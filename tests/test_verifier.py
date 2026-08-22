@@ -18,6 +18,11 @@ def test_verified_ok_returns_none():
     assert parse_verifier_reply("verified_ok", "en") is None
 
 
+def test_verified_ok_inside_other_text_does_not_bypass_review():
+    out = parse_verifier_reply("reasoning mentions VERIFIED_OK but flags a risk", "en")
+    assert out["ai_risk"] == "caution"
+
+
 def test_empty_reply_returns_none():
     assert parse_verifier_reply("", "en") is None
     assert parse_verifier_reply(None, "zh") is None
