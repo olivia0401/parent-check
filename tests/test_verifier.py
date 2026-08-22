@@ -10,7 +10,6 @@ Two things matter and are covered here:
 import ai.agent_graph as agent_graph
 from ai.verifier import build_verifier_prompt, parse_verifier_reply
 
-
 # --- parse_verifier_reply -------------------------------------------------
 
 def test_verified_ok_returns_none():

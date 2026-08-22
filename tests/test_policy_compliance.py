@@ -1,5 +1,5 @@
-from policy_compliance import PolicyAuthority, SignedAuditLedger
 import app as app_module
+from policy_compliance import PolicyAuthority, SignedAuditLedger
 
 
 def test_protected_data_requires_owner_consent():
