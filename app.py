@@ -17,6 +17,7 @@ import ocr
 import repo
 from fetch_url import fetch_article, is_url
 from helpers import analyze_content, build_view
+from policy_compliance import PolicyAuthority, SignedAuditLedger
 from ratelimit import RateLimiter
 from regions import current_region, current_region_code
 from translations import TRANSLATIONS
@@ -56,11 +57,13 @@ _limiter = RateLimiter(RATE_LIMIT, RATE_WINDOW)
 
 # source options shown on the home page form (labels live in translations.py)
 SOURCE_CODES = ["health_article", "supplement_ad", "suspicious_msg", "other"]
+_policy_authority = PolicyAuthority()
+_audit_ledger = SignedAuditLedger()
 
 
-# Run on import, not just __main__ - gunicorn never executes the block below.
-# Enables pgvector and creates tables/indexes if they don't exist yet.
-db.init_db()
+# Defer database initialization until the first request. Importing the Flask
+# app must not require PostgreSQL to already be running.
+_db_ready = False
 
 # Optional Gemini step. Stays off (None) unless GEMINI_API_KEY is set, in which
 # case the app just runs on the rule-based checks like before.
@@ -121,6 +124,23 @@ def remember_language():
     lang = request.args.get("lang")
     if lang in TRANSLATIONS:
         session["lang"] = lang
+
+
+@app.before_request
+def ensure_database():
+    """Initialize the schema once and return a clear error if it is offline."""
+    global _db_ready
+    if _db_ready:
+        return None
+    try:
+        db.init_db()
+        _db_ready = True
+        return None
+    except Exception:
+        app.logger.exception("Database initialization failed")
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "database_unavailable"}), 503
+        return "Service temporarily unavailable: database is not ready.", 503
 
 
 @app.before_request
@@ -392,6 +412,38 @@ def api_check():
     return _analyze_json(content, source, lang, fetched_title)
 
 
+@app.route("/api/policy-check", methods=["POST"])
+def api_policy_check():
+    """Evaluate access without receiving or storing the protected payload.
+
+    The caller gets a signed, hash-linked decision that can be independently
+    checked with the public key returned by this endpoint. This deliberately
+    demonstrates policy enforcement separately from the LLM so the LLM cannot
+    grant itself access.
+    """
+    data = request.get_json(silent=True) or {}
+    required = ("principal", "data_owner", "data_class", "purpose")
+    if any(not isinstance(data.get(field), str) for field in required):
+        return jsonify({"error": "invalid_policy_request"}), 400
+
+    decision = _policy_authority.decide(
+        principal=data["principal"],
+        data_owner=data["data_owner"],
+        data_class=data["data_class"],
+        purpose=data["purpose"],
+    )
+    event = _audit_ledger.append(decision)
+    return jsonify({
+        "decision": decision.decision,
+        "reason_code": decision.reason_code,
+        "policy_id": decision.policy_id,
+        "policy_version": decision.policy_version,
+        "audit_event": event,
+        "audit_public_key": _audit_ledger.public_key,
+        "audit_chain_valid": _audit_ledger.verify(),
+    })
+
+
 @app.route("/api/check-image", methods=["POST"])
 def api_check_image():
     """
@@ -488,5 +540,4 @@ def privacy():
 
 
 if __name__ == "__main__":
-    db.init_db()
     app.run(debug=True)

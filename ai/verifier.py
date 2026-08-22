@@ -115,7 +115,9 @@ def parse_verifier_reply(text, lang):
     caution, never remove it. On a parseable escalation it returns
     ``{"ai_risk", "reason", "advice"}`` with risk defaulting to caution.
     """
-    if not text or "VERIFIED_OK" in text.upper():
+    # Only the complete sentinel means agreement. A quoted token inside
+    # reasoning/JSON must not bypass the second opinion.
+    if not text or text.strip().upper() == "VERIFIED_OK":
         return None
 
     obj = _extract_json_object(text)

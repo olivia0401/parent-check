@@ -410,6 +410,24 @@ as a security tool, not just a web form:
 - **Tested** — `python -m pytest` covers the judgement logic, CSRF rejection and
   per-browser isolation; CI runs ruff + pytest + the accuracy check on every push.
 
+## Policy-compliant AI research prototype
+
+`policy_compliance.py` models a separated data-owner / AI-service /
+policy-authority workflow. `POST /api/policy-check` evaluates access without
+receiving the protected payload, then returns a signed, hash-linked audit event
+and a public key for verification. This proves the integrity of the decision
+record and policy path; it is not yet a full zero-knowledge, MPC or FHE proof.
+
+The synthetic baseline can be reproduced with:
+
+```bash
+python research/evaluate_policy_tradeoffs.py
+```
+
+It reports policy accuracy, protected-data exposure rate and decision latency.
+The next research extensions are federated learning/differential privacy and a
+benchmark against MPC or zero-knowledge enforcement.
+
 Known limits for a larger deployment: a data-retention policy on the Postgres
 history table, and automated dependency scanning (`pip-audit` / Dependabot). The
 Postgres migration, pgvector retrieval and shared Redis rate-limit store that
