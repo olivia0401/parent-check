@@ -1,0 +1,45 @@
+from policy_compliance import PolicyAuthority, SignedAuditLedger
+import app as app_module
+
+
+def test_protected_data_requires_owner_consent():
+    decision = PolicyAuthority().decide(
+        principal="ai-service", data_owner="alice", data_class="health", purpose="scam_check"
+    )
+    assert decision.decision == "deny"
+    assert decision.reason_code == "owner_consent_required"
+
+
+def test_allowed_owner_request_is_audited_and_verifiable():
+    ledger = SignedAuditLedger()
+    decision = PolicyAuthority().decide(
+        principal="alice", data_owner="alice", data_class="health", purpose="scam_check"
+    )
+    event = ledger.append(decision)
+    assert event["decision"]["decision"] == "allow"
+    assert ledger.verify()
+    assert ledger.public_key
+
+
+def test_tampering_breaks_signature_or_chain():
+    ledger = SignedAuditLedger()
+    ledger.append(PolicyAuthority().decide(
+        principal="alice", data_owner="alice", data_class="health", purpose="scam_check"
+    ))
+    ledger._events[0]["decision"]["decision"] = "deny"
+    assert not ledger.verify()
+
+
+def test_policy_api_returns_verifiable_evidence():
+    client = app_module.app.test_client()
+    response = client.post("/api/policy-check", json={
+        "principal": "ai-service",
+        "data_owner": "alice",
+        "data_class": "health",
+        "purpose": "scam_check",
+    })
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["decision"] == "deny"
+    assert body["audit_chain_valid"] is True
+    assert body["audit_event"]["decision"]["reason_code"] == "owner_consent_required"

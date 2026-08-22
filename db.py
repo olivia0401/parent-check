@@ -30,6 +30,11 @@ from sqlalchemy.orm import (
     sessionmaker,
 )
 
+try:
+    from sqlalchemy.pool import StaticPool
+except ImportError:  # pragma: no cover
+    StaticPool = None
+
 # Gemini text-embedding-004 returns 768-dim vectors. Keep in sync with the model.
 EMBED_DIM = 768
 
@@ -39,7 +44,12 @@ DATABASE_URL = os.environ.get(
 )
 
 # pool_pre_ping avoids "server closed the connection" errors after RDS idles out.
-engine = create_engine(DATABASE_URL, pool_pre_ping=True, future=True)
+_engine_kwargs = {"pool_pre_ping": True, "future": True}
+if DATABASE_URL.startswith("sqlite"):
+    _engine_kwargs["connect_args"] = {"check_same_thread": False}
+    if StaticPool is not None:
+        _engine_kwargs["poolclass"] = StaticPool
+engine = create_engine(DATABASE_URL, **_engine_kwargs)
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False, future=True)
 
 
@@ -106,9 +116,16 @@ def init_db():
     """Enable pgvector and create tables/indexes. Idempotent - safe to call on
     every startup. Alembic owns schema changes in production (see RUN_POSTGRES.md);
     this is the zero-config path for local dev and first boot."""
-    with engine.begin() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-    Base.metadata.create_all(engine)
+    if engine.dialect.name == "postgresql":
+        with engine.begin() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        Base.metadata.create_all(engine)
+    else:
+        # Test-only SQLite path: history routes do not need pgvector/RAG.
+        Check.__table__.create(engine, checkfirst=True)
+
+    if engine.dialect.name != "postgresql":
+        return
     # Backfill the chunk-metadata columns on a scam_cases table created before
     # chunking existed. ADD COLUMN IF NOT EXISTS keeps this idempotent, matching
     # the zero-config spirit of create_all above (Alembic owns prod migrations).

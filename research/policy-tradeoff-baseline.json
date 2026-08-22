@@ -1,0 +1,7 @@
+{
+  "dataset": "synthetic-policy-v1",
+  "cases": 4,
+  "policy_accuracy": 1.0,
+  "protected_data_exposure_rate": 0.0,
+  "mean_decision_latency_ms": 0.0075
+}
