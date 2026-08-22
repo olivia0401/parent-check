@@ -6,9 +6,8 @@
 # OCR itself (Gemini vision / Azure) needs a live key and is covered separately;
 # here we monkeypatch ocr.extract_text so the wiring is tested deterministically.
 #
-# Imports app, which calls db.init_db() at import time, so these need the Postgres
-# service (present in CI, same as tests/test_app.py). The pure OCR-layer logic
-# lives in tests/test_ocr.py and needs no DB.
+# The app initializes its isolated test database on the first request. The pure
+# OCR-layer logic lives in tests/test_ocr.py and needs no DB.
 
 import io
 
