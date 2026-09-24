@@ -1,11 +1,17 @@
 name: Deploy to Amazon ECS
 
-# CI/CD: on every push to main, build the container, push it to Amazon ECR,
-# and trigger a new deployment of the ECS Express (Fargate) service.
+# Optional CD for the Terraform ECS stack in infra/ (which is brought up on
+# demand, not always on). Manual-only: run it from the Actions tab after
+# `terraform apply -var="enable_cicd=true"`. It builds the container, pushes it
+# to Amazon ECR and triggers a new deployment of the ECS (Fargate) service.
+# The live site runs on EC2 with docker compose (see README) and is not
+# deployed by this workflow.
+#
+# Requires the repository variable AWS_ROLE_ARN (Settings → Secrets and
+# variables → Actions → Variables) = `terraform -chdir=infra output -raw
+# github_deploy_role_arn`.
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:        # allows manual runs from the Actions tab
+  workflow_dispatch:
 
 permissions:
   id-token: write           # required to request the OIDC token for AWS
@@ -14,10 +20,10 @@ permissions:
 env:
   AWS_REGION: eu-west-1
   ECR_REPO: parent-check
-  ECS_CLUSTER: default
+  ECS_CLUSTER: parent-check   # = var.project in infra/ecs.tf
   ECS_SERVICE: parent-check
-  # OIDC role created in AWS (no long-lived keys stored in GitHub).
-  ROLE_ARN: arn:aws:iam::378970972471:role/github-actions-parent-check-deploy
+  # OIDC role created by infra/iam.tf (no long-lived keys stored in GitHub).
+  ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
 
 jobs:
   # Quality gate: a classifier regression blocks the deploy entirely.

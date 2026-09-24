@@ -8,7 +8,6 @@ __pycache__/
 .ruff_cache/
 parent_check.db
 tests/
-update.patch
 prompt test/
 .env
 DEPLOY.md
