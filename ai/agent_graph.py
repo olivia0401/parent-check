@@ -230,9 +230,9 @@ def _get_graph():
 
 def analyze(content, lang, existing_risk, llm, rag):
     """
-    Drop-in replacement for agent.analyze(), backed by the LangGraph state
-    machine. Same signature, same return contract (a result dict, or None
-    when the AI step can't run / fails).
+    Run the AI second opinion through the LangGraph state machine. Returns a
+    result dict, or None when the AI step can't run / fails (the caller then
+    keeps the rule-based verdict).
     """
     if not llm.available:
         return None

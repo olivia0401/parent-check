@@ -21,6 +21,7 @@ If anything goes wrong (no API key, network error, bad response) every method
 just returns None, so the rest of the app can carry on without the AI step.
 """
 import base64
+import logging
 import os
 import time
 
@@ -42,6 +43,14 @@ EMBED_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embe
 # both Gemini (outputDimensionality) and Azure text-embedding-3-* (dimensions)
 # can emit 768-dim vectors, so the two stacks stay column-compatible.
 EMBED_DIM = 768
+
+log = logging.getLogger(__name__)
+
+
+def _log_failure(what, exc):
+    """Log a swallowed provider error by type only - never the prompt, the user's
+    text, or the exception message (which can echo request details)."""
+    log.warning("LLM %s failed: %s", what, type(exc).__name__)
 
 
 def _usage(body):
@@ -91,6 +100,11 @@ class LLMClient:
     def __init__(self):
         self.api_key = os.environ.get("GEMINI_API_KEY")
 
+    def _gemini_headers(self):
+        """Send the key as a header, not a ?key= query param, so it never lands
+        in URLs recorded by tracing/access logs."""
+        return {"x-goog-api-key": self.api_key}
+
     @property
     def available(self):
         """True if either provider can serve requests."""
@@ -108,7 +122,8 @@ class LLMClient:
         t0 = time.monotonic()
         try:
             resp = requests.post(
-                f"{GENERATE_URL}?key={self.api_key}",
+                GENERATE_URL,
+                headers=self._gemini_headers(),
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
@@ -129,7 +144,8 @@ class LLMClient:
                 latency_s=time.monotonic() - t0, usage=_usage(body),
             )
             return text
-        except Exception:
+        except Exception as e:
+            _log_failure("generate", e)
             llm_trace.log_generation(
                 trace_label, prompt, None, model="gemini-flash-lite-latest",
                 latency_s=time.monotonic() - t0, metadata={"error": True},
@@ -155,7 +171,8 @@ class LLMClient:
         t0 = time.monotonic()
         try:
             resp = requests.post(
-                f"{GENERATE_URL}?key={self.api_key}",
+                GENERATE_URL,
+                headers=self._gemini_headers(),
                 json={
                     "contents": messages,
                     "tools": [{"functionDeclarations": tools}],
@@ -193,7 +210,8 @@ class LLMClient:
                 metadata={"kind": "text"},
             )
             return {"type": "text", "text": text}
-        except Exception:
+        except Exception as e:
+            _log_failure("generate_with_tools", e)
             llm_trace.log_generation(
                 "scam.agent", messages, None, model="gemini-flash-lite-latest",
                 latency_s=time.monotonic() - t0, metadata={"error": True},
@@ -223,7 +241,8 @@ class LLMClient:
         )
         try:
             resp = requests.post(
-                f"{GENERATE_URL}?key={self.api_key}",
+                GENERATE_URL,
+                headers=self._gemini_headers(),
                 json={
                     "contents": [{"parts": [
                         {"text": prompt},
@@ -250,7 +269,8 @@ class LLMClient:
                 latency_s=time.monotonic() - t0, usage=_usage(body),
             )
             return text.strip()
-        except Exception:
+        except Exception as e:
+            _log_failure("read_image_text", e)
             llm_trace.log_generation(
                 "scam.ocr", "[image]", None, model="gemini-flash-lite-latest",
                 latency_s=time.monotonic() - t0, metadata={"error": True},
@@ -266,7 +286,8 @@ class LLMClient:
             return None
         try:
             resp = requests.post(
-                f"{EMBED_URL}?key={self.api_key}",
+                EMBED_URL,
+                headers=self._gemini_headers(),
                 json={
                     "model": "models/gemini-embedding-001",
                     "content": {"parts": [{"text": text[:2000]}]},
@@ -276,7 +297,8 @@ class LLMClient:
             )
             resp.raise_for_status()
             return resp.json()["embedding"]["values"]
-        except Exception:
+        except Exception as e:
+            _log_failure("embed", e)
             return None
 
     # --- Azure OpenAI backend -----------------------------------------------
@@ -312,7 +334,8 @@ class LLMClient:
                 latency_s=time.monotonic() - t0, usage=_azure_usage(body),
             )
             return text
-        except Exception:
+        except Exception as e:
+            _log_failure("azure_generate", e)
             llm_trace.log_generation(
                 trace_label, prompt, None, model=f"azure:{cfg['chat']}",
                 latency_s=time.monotonic() - t0, metadata={"error": True},
@@ -339,5 +362,6 @@ class LLMClient:
             )
             resp.raise_for_status()
             return resp.json()["data"][0]["embedding"]
-        except Exception:
+        except Exception as e:
+            _log_failure("azure_embed", e)
             return None

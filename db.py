@@ -35,7 +35,8 @@ try:
 except ImportError:  # pragma: no cover
     StaticPool = None
 
-# Gemini text-embedding-004 returns 768-dim vectors. Keep in sync with the model.
+# Embeddings are requested at 768 dims (gemini-embedding-001 with
+# outputDimensionality, see ai/llm_client.py). Keep in sync with EMBED_DIM there.
 EMBED_DIM = 768
 
 DATABASE_URL = os.environ.get(

@@ -1,8 +1,8 @@
 """Policy-constrained access decisions with verifiable audit evidence.
 
 This is a research prototype, not a replacement for a production policy
-engine or a KMS. It models the three-party setting in the Newcastle project:
-the data owner, the AI service, and the policy authority exchange a decision
+engine or a KMS. It models a three-party setting in which the data owner,
+the AI service, and the policy authority exchange a decision
 without exposing the protected payload. Each decision is signed with Ed25519
 and linked to the previous decision, making the local audit stream tamper-
 evident. The private key must be replaced by KMS/HSM custody in production.
@@ -81,11 +81,18 @@ class PolicyAuthority:
 
 
 class SignedAuditLedger:
-    """Append-only, hash-linked Ed25519-signed decision evidence."""
+    """Append-only, hash-linked Ed25519-signed decision evidence.
 
-    def __init__(self, private_key: Ed25519PrivateKey | None = None):
+    Held in memory for this prototype, so only the most recent `max_events`
+    are kept (a bounded window, not unbounded growth from a public endpoint).
+    Verification starts from the hash of the last event that rolled off, so the
+    retained window still verifies as an unbroken chain."""
+
+    def __init__(self, private_key: Ed25519PrivateKey | None = None, max_events: int = 1000):
         self._private_key = private_key or Ed25519PrivateKey.generate()
         self._events: list[dict[str, Any]] = []
+        self._anchor = "GENESIS"  # previous_hash of the oldest retained event
+        self._max_events = max_events
         self._lock = Lock()
 
     @property
@@ -110,10 +117,12 @@ class SignedAuditLedger:
             }
             event["event_hash"] = hashlib.sha256(_canonical(event)).hexdigest()
             self._events.append(event)
+            if len(self._events) > self._max_events:
+                self._anchor = self._events.pop(0)["event_hash"]
             return event.copy()
 
     def verify(self) -> bool:
-        previous_hash = "GENESIS"
+        previous_hash = self._anchor
         public_key = self._private_key.public_key()
         for event in self._events:
             signed_payload = {
