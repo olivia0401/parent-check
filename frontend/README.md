@@ -23,10 +23,12 @@ The backend allows this origin via CORS (`FRONTEND_ORIGIN`, defaults to
 
 ## Structure
 
-- `app/page.tsx` — the check form + result, a single client component.
+- `app/page.tsx` — the check form (paste text / a link, or upload a screenshot)
+  + result, a single client component.
 - `components/ResultCard.tsx` — renders the verdict (risk badge, reasons,
   advice, AI second opinion, forward-to-family note).
-- `lib/api.ts` — typed `fetch` wrapper for `POST /api/check`.
+- `lib/api.ts` — typed `fetch` wrappers for `POST /api/check` and
+  `POST /api/check-image`.
 - `lib/types.ts` — request/response types mirroring the API contract.
 - `lib/i18n.ts` — zh/en UI strings and risk-colour styles.
 
