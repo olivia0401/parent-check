@@ -2,8 +2,8 @@
 
 The data layer moved from SQLite (with embeddings stored as JSON and cosine
 computed in Python) to **PostgreSQL + pgvector**, so scam-case retrieval is now
-a native, indexed nearest-neighbour query. Redis is wired into the stack for the
-next milestone (distributed rate limiting / caching).
+a native, indexed nearest-neighbour query. Redis backs the shared rate limiter
+(`ratelimit.py`), with an in-process fallback when it is unreachable.
 
 ## 1. Run the whole stack locally
 
@@ -39,11 +39,12 @@ python app.py
 
 ## 3. Migrations (Alembic)
 
-`db.init_db()` is enough to boot, but schema **changes** are tracked with Alembic
+`db.init_db()` is enough to boot. Alembic is configured for schema **changes**
 (config in `alembic.ini`, wiring in `migrations/env.py` — it reads `DATABASE_URL`
-and autogenerates against the models in `db.py`).
+and autogenerates against the models in `db.py`), but no revision has been
+committed yet (`migrations/versions/` is empty).
 
-Generate the initial migration:
+To create the initial migration:
 
 ```bash
 export DATABASE_URL=postgresql+psycopg2://parentcheck:parentcheck@localhost:5432/parentcheck
@@ -74,7 +75,8 @@ alembic stamp head
 
 ## Notes
 
-- `schema.sql` and `parent_check.db` (the old SQLite files) are no longer used
-  and can be deleted once you've confirmed the Postgres path works.
-- `EMBED_DIM = 768` in `db.py` matches Gemini `text-embedding-004`. If you swap
-  the embedding model, change it and generate a new migration.
+- The old SQLite path has been removed; a leftover local `parent_check.db` is
+  unused (and gitignored).
+- `EMBED_DIM = 768` in `db.py` matches the 768-dim vectors requested from Gemini
+  `gemini-embedding-001` (`ai/llm_client.py`). If you change the embedding model
+  or dimension, change both and generate a new migration.
