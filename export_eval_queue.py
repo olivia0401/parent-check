@@ -1,6 +1,6 @@
 """Export this product's decisions as an annotation queue for the eval platform.
 
-    python export_eval_queue.py --output ../prompt\\ test/data/golden/queue.jsonl
+    python export_eval_queue.py --output path/to/queue.jsonl
 
 Why this exists
 ---------------

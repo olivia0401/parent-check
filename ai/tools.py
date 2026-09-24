@@ -11,6 +11,9 @@ describe them below and run whatever it asks for.
 import concurrent.futures
 import re
 
+# Deadline for one batch of parallel tool calls (seconds).
+TOOL_TIMEOUT_S = 8
+
 TOOL_DECLARATIONS = [
     {
         "name": "query_knowledge_base",
@@ -82,9 +85,19 @@ def execute_query_rag(text, rag, lang, category=None):
     return {"found": True, "cases": len(cases), "summary": header + "\n" + "\n".join(lines)}
 
 
+# Standalone short official numbers, per region (not part of a longer number).
+_HELPLINE_RE = {
+    "en": r'(?<![\d+])(999|101|111|159)(?!\d)',
+    "zh": r'(?<![\d+])(110|120|119|96110|12110)(?!\d)',
+}
+
+
 def execute_check_phone(text, lang):
     """Find phone numbers in the text and label what type each one looks like."""
     raw_matches = re.findall(r'(?<!\d)(\+?[\d][\d\s\-\(\)]{5,18}\d)(?!\d)', text)
+    # Short official helplines (999 / 159 / 110 / 96110 ...) are too short for the
+    # general pattern above, so pick them up explicitly as standalone numbers.
+    raw_matches += re.findall(_HELPLINE_RE[lang if lang == "zh" else "en"], text)
 
     # clean up spaces/dashes/brackets and drop duplicates
     phones = []
@@ -165,11 +178,22 @@ def run_tools_parallel(calls, rag, lang, original_text):
         return {"name": name, "response": result}
 
     results = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-        futures = [pool.submit(run_one, c) for c in calls]
-        for f in concurrent.futures.as_completed(futures, timeout=8):
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+    futures = [pool.submit(run_one, c) for c in calls]
+    try:
+        for f in concurrent.futures.as_completed(futures, timeout=TOOL_TIMEOUT_S):
             try:
                 results.append(f.result())
             except Exception:
                 pass
+    except concurrent.futures.TimeoutError:
+        # Hard deadline: return whatever finished; a slow tool is reported to the
+        # model as timed out instead of failing the whole AI step.
+        done = {r["name"] for r in results}
+        for c in calls:
+            if c["name"] not in done:
+                results.append({"name": c["name"], "response": {"error": "timeout"}})
+    finally:
+        # Don't block the request on stragglers; they finish in the background.
+        pool.shutdown(wait=False, cancel_futures=True)
     return results

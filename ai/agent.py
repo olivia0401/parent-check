@@ -97,7 +97,10 @@ def parse_ai_reply(text, lang):
     the older "风险：/Risk:" text format, and finally to a plain "caution" — we
     would always rather show too much than drop a warning.
     """
-    if not text or "NOTHING_TO_ADD" in text.upper():
+    # Only the complete sentinel means "nothing new". A token quoted inside the
+    # JSON reasoning (or echoed from an injected message) must not discard a
+    # real verdict - same rule as verifier.parse_verifier_reply.
+    if not text or text.strip().strip("`.").strip().upper() == "NOTHING_TO_ADD":
         return None
 
     return _parse_json_reply(text, lang) or _parse_text_reply(text, lang)

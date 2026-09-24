@@ -43,3 +43,14 @@ def test_policy_api_returns_verifiable_evidence():
     assert body["decision"] == "deny"
     assert body["audit_chain_valid"] is True
     assert body["audit_event"]["decision"]["reason_code"] == "owner_consent_required"
+
+
+def test_ledger_is_bounded_and_window_still_verifies():
+    ledger = SignedAuditLedger(max_events=3)
+    decision = PolicyAuthority().decide(
+        principal="alice", data_owner="alice", data_class="health", purpose="scam_check"
+    )
+    for _ in range(5):
+        ledger.append(decision)
+    assert len(ledger.events()) == 3
+    assert ledger.verify()

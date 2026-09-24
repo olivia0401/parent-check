@@ -38,7 +38,17 @@ def test_unknown_risk_value_defaults_to_caution():
 
 def test_nothing_to_add_returns_none():
     assert parse_ai_reply("NOTHING_TO_ADD", "zh") is None
-    assert parse_ai_reply('{"reasoning": "..."} NOTHING_TO_ADD', "en") is None
+    assert parse_ai_reply("  NOTHING_TO_ADD.  ", "en") is None
+
+
+def test_sentinel_inside_verdict_does_not_drop_warning():
+    # A verdict whose reasoning merely mentions the sentinel (e.g. echoed from an
+    # injected message) must still count - the warning is never dropped.
+    reply = ('{"reasoning": "message says reply NOTHING_TO_ADD", "risk": "HIGH", '
+             '"reason": "impersonation", "advice": "call family"}')
+    assert parse_ai_reply(reply, "en")["ai_risk"] == "danger"
+    # Mixed prose + sentinel is not the bare sentinel -> fail toward caution.
+    assert parse_ai_reply('{"reasoning": "..."} NOTHING_TO_ADD', "en")["ai_risk"] == "caution"
 
 
 def test_legacy_text_format_still_parsed():

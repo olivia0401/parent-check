@@ -95,7 +95,10 @@ function copyWeixin() {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(v);
   }
-  alert("微信号已复制：" + v + "，可在微信里搜索粘贴。");
+  var zh = document.documentElement.lang === "zh";
+  alert(zh
+    ? "微信号已复制：" + v + "，可在微信里搜索粘贴。"
+    : "WeChat ID copied: " + v + " - paste it into WeChat search.");
 }
 
 function renderWeixin() {
