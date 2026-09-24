@@ -1,4 +1,4 @@
-# Flask app for 爸妈求证 (Parent Check) - CS50x final project.
+# Flask app for 爸妈求证 (ScamShield for Parents).
 #
 # Language is kept in the session and switched with ?lang=zh / ?lang=en. All
 # the actual wording lives in translations.py - the DB only ever stores
@@ -7,9 +7,11 @@
 
 import os
 import secrets
+import threading
 
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 import db
 import observability
@@ -22,15 +24,34 @@ from ratelimit import RateLimiter
 from regions import current_region, current_region_code
 from translations import TRANSLATIONS
 
+
+def is_production():
+    """True when running as a real deployment. Set APP_ENV=production (the EC2
+    docker-compose.prod.yml does this); Render is detected via its RENDER var."""
+    return (
+        os.environ.get("APP_ENV", "").strip().lower() == "production"
+        or bool(os.environ.get("RENDER"))
+    )
+
+
+PRODUCTION = is_production()
+
 app = Flask(__name__)
-# In production (Render sets RENDER) a missing SECRET_KEY is a hard error -
-# locally we just fall back to a dev key.
+# In production a missing SECRET_KEY is a hard error - locally we just fall
+# back to a dev key.
 _secret = os.environ.get("SECRET_KEY")
 if not _secret:
-    if os.environ.get("RENDER"):
-        raise RuntimeError("SECRET_KEY must be set in production")
+    if PRODUCTION:
+        raise RuntimeError("SECRET_KEY must be set in production (APP_ENV=production)")
     _secret = "dev-only-key-not-for-production"
 app.secret_key = _secret
+
+# Behind a reverse proxy (Caddy on EC2, the ALB on ECS): trust only the
+# X-Forwarded-For hop(s) our own proxy appends (TRUSTED_PROXY_HOPS, default 1),
+# so request.remote_addr is the real client IP and a client-supplied
+# X-Forwarded-For can't dodge the rate limit.
+_PROXY_HOPS = int(os.environ.get("TRUSTED_PROXY_HOPS", "1"))
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=_PROXY_HOPS, x_proto=_PROXY_HOPS)
 
 # Structured logging + tracing + Prometheus /metrics (degrades if libs absent).
 observability.setup(app, db.engine)
@@ -39,7 +60,7 @@ observability.setup(app, db.engine)
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=bool(os.environ.get("RENDER")),
+    SESSION_COOKIE_SECURE=PRODUCTION,
 )
 
 # The Next.js frontend runs on its own origin and calls /api/*. Allow just
@@ -83,15 +104,24 @@ def _init_ai():
         if not _llm.available:
             return
 
-        data_dir = os.path.dirname(__file__)
         _rag_zh = ScamRAGEngine(_llm, "zh")
         _rag_en = ScamRAGEngine(_llm, "en")
+    except Exception as e:
+        app.logger.warning("AI init failed (continuing without AI): %s", type(e).__name__)
 
-        # only does anything the first time - table stays populated after
+
+def _seed_knowledge_bases():
+    """Seed the zh/en knowledge bases on first run. Called right after the
+    schema is created (see ensure_database), because the scam_cases table must
+    exist first. Only does anything while a language's table is empty."""
+    if _rag_zh is None or _rag_en is None:
+        return
+    data_dir = os.path.dirname(__file__)
+    try:
         _rag_zh.seed_if_empty(os.path.join(data_dir, "data", "scams_zh.json"))
         _rag_en.seed_if_empty(os.path.join(data_dir, "data", "scams_en.json"))
     except Exception as e:
-        app.logger.warning("AI init failed (continuing without AI): %s", e)
+        app.logger.warning("RAG seed failed (continuing without it): %s", type(e).__name__)
 
 
 _init_ai()
@@ -135,12 +165,15 @@ def ensure_database():
     try:
         db.init_db()
         _db_ready = True
-        return None
     except Exception:
         app.logger.exception("Database initialization failed")
         if request.path.startswith("/api/"):
             return jsonify({"error": "database_unavailable"}), 503
         return "Service temporarily unavailable: database is not ready.", 503
+    # Schema now exists, so the knowledge bases can be seeded. Run it in the
+    # background so the first visitor isn't blocked on embedding calls.
+    threading.Thread(target=_seed_knowledge_bases, daemon=True).start()
+    return None
 
 
 @app.before_request
@@ -148,8 +181,8 @@ def rate_limit():
     """Throttle POSTs per client IP to deter batch abuse of the service."""
     if request.method != "POST":
         return None
-    fwd = request.headers.get("X-Forwarded-For", request.remote_addr) or "?"
-    ip = fwd.split(",")[0].strip()
+    # ProxyFix has already resolved remote_addr from the trusted proxy hop.
+    ip = request.remote_addr or "?"
     if not _limiter.allow(ip):
         app.logger.warning("rate limit hit for %s", ip)
         return "Too many requests, please slow down.", 429
@@ -423,7 +456,10 @@ def api_policy_check():
     """
     data = request.get_json(silent=True) or {}
     required = ("principal", "data_owner", "data_class", "purpose")
-    if any(not isinstance(data.get(field), str) for field in required):
+    if any(
+        not isinstance(data.get(field), str) or not 0 < len(data[field]) <= 64
+        for field in required
+    ):
         return jsonify({"error": "invalid_policy_request"}), 400
 
     decision = _policy_authority.decide(
@@ -540,4 +576,5 @@ def privacy():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Local development only; production runs under gunicorn.
+    app.run(debug=os.environ.get("FLASK_DEBUG") == "1")

@@ -3,17 +3,13 @@ parent_check.db
 *.pyc
 *.joblib
 
-# Secrets — never commit. Only .env.example is tracked.
+# Secrets — never commit. Only the *.example env files are tracked.
 .env
 
-# Nested prompt-evaluation working copy (its own repo + .env secrets) — never commit
+# Local-only working files (not part of the project)
 prompt test/
-
-# local agent/editor config — never commit
 .claude/
-
-# Local learning course (CS50-style walkthrough of the AI code) — kept local only
 learn/
-
-# Stray image accidentally dropped into the repo root — not part of the project
-1784253014396.jpg
+OUTREACH.md
+outreach/
+/*.jpg

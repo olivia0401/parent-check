@@ -1,7 +1,11 @@
 # Caddy auto-provisions a Let's Encrypt certificate for SITE_ADDRESS and
 # terminates HTTPS, reverse-proxying to the Flask app (gunicorn on :8000).
-# SITE_ADDRESS is an IP-based hostname via sslip.io — no domain purchase needed,
-# e.g.  18.130.220.167.sslip.io
+# SITE_ADDRESS is any DNS name pointing at the server, e.g. a DuckDNS name or
+# an IP-based sslip.io hostname such as 203.0.113.10.sslip.io.
 {$SITE_ADDRESS} {
+	# Prometheus metrics stay internal: scrape web:8000/metrics on the Docker
+	# network; the public site does not expose them.
+	respond /metrics 404
+
 	reverse_proxy web:8000
 }

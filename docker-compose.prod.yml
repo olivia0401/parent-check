@@ -1,5 +1,5 @@
-# Production stack for a single always-on server (one small AWS EC2), mirroring
-# the AI-Job-Scout deploy: docker compose + Caddy auto-HTTPS. Real Postgres/
+# Production stack for a single always-on server (one small AWS EC2):
+# docker compose + Caddy auto-HTTPS. Real Postgres/
 # pgvector + Redis run alongside the app — not a degraded demo.
 #
 #   1. copy .env.prod.example -> .env  and fill it in
@@ -41,7 +41,10 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: ${SECRET_KEY}
+      # APP_ENV=production makes the app refuse to start without SECRET_KEY and
+      # marks session cookies Secure (HTTPS-only; Caddy terminates TLS).
+      APP_ENV: ${APP_ENV:-production}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in .env}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       SITE_URL: "https://${SITE_ADDRESS}"   # for absolute og:/twitter: share links; reuses SITE_ADDRESS
     depends_on:
