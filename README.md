@@ -7,6 +7,14 @@ or health claim looks like a scam.** It pairs fast, predictable keyword rules
 with an optional AI second opinion, served by a Flask backend with a JSON API
 and a Next.js frontend.
 
+**On the quality side**, this is a RAG pipeline (chunking → pgvector retrieval →
+reranking) with an independent verifier agent, gated in CI by an
+**asymmetrically-thresholded** eval: a missed scam and a false alarm are not the
+same failure and do not share a threshold (`evaluate.py`, `MAX_MISSED_SCAMS=0`).
+Because the engine reports the exact signals behind each verdict, it also serves
+as the source of an evidence-annotation corpus for grounding metrics —
+`export_eval_queue.py` exports it as `annotation-queue/v1`.
+
 **▶ Live:** [parentcheck.duckdns.org](https://parentcheck.duckdns.org). This is the
 full production stack on **AWS EC2**: Docker Compose, Caddy for auto-HTTPS, and a
 real Postgres/pgvector + Redis. Also on Render:
