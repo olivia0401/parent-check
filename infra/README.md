@@ -23,8 +23,8 @@ task definition or to CI.
 This stack (ALB + RDS + ElastiCache + Fargate) costs ~$50/mo if left running.
 For a portfolio demo it's cheaper to bring it **up before a demo and destroy it
 after** — the whole stack is reproducible from code, so idle cost is ~$0. The
-always-on public demo lives on Render; this is the "spin up the real AWS
-production stack on demand" story.
+always-on public site does not use this stack: it runs on a single EC2
+instance with Docker Compose + Caddy (see [`../DEPLOY.md`](../DEPLOY.md)).
 
 **Bring it up (~15 min, RDS is the slow part):**
 
@@ -53,16 +53,20 @@ terraform destroy -var="gemini_api_key=..."
 `recovery_window_in_days = 0` on the secret are all set so `destroy` completes
 cleanly without leftovers that keep billing.
 
-### Optional: enable CI/CD (GitHub Actions deploys on push)
+### Optional: deploy from GitHub Actions (manual workflow)
 
 Off by default (`enable_cicd = false`) so the first apply never depends on an
 OIDC provider pre-existing. To turn it on:
 
 ```bash
 terraform apply -var="enable_cicd=true" -var="gemini_api_key=..."
-terraform output github_deploy_role_arn    # -> ROLE_ARN in .github/workflows/deploy.yml
-terraform output ecr_repository_url        # -> ECR_REPO in deploy.yml
+terraform output github_deploy_role_arn    # -> repository variable AWS_ROLE_ARN
 ```
+
+Save the role ARN as the repository variable `AWS_ROLE_ARN` (Settings → Secrets
+and variables → Actions → Variables), then run **Deploy to Amazon ECS**
+(`.github/workflows/deploy.yml`) from the Actions tab. It is manual-only
+(`workflow_dispatch`) because this stack is not always running.
 
 This creates the GitHub OIDC provider + a scoped deploy role. If your account
 already has the provider, `terraform import` it instead (a second create errors).

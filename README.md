@@ -1,4 +1,4 @@
-# 爸妈求证 (ScamShield for Parents)
+# ScamShield for Parents (爸妈求证)
 
 [![ScamShield for Parents — a bilingual scam-safety AI agent, live on AWS](static/og-image.png)](https://parentcheck.duckdns.org)
 
@@ -24,7 +24,7 @@ real Postgres/pgvector + Redis. Also on Render:
 
 #### What it is
 
-爸妈求证 (ScamShield for Parents) is a bilingual web app that helps elderly
+ScamShield for Parents (爸妈求证, "check with Mum and Dad") is a bilingual web app that helps elderly
 people — in my case, Chinese-speaking seniors living in the UK — pause and get a
 second opinion when they see something they aren't sure about: a health article,
 a miracle-cure advert, a suspicious text, or a strange link. The user pastes the
@@ -121,9 +121,9 @@ one checks it — wired as a **LangGraph state machine** (see below).
 Verdicts are worded to avoid false reassurance. There are three, and none of
 them is the word "safe":
 
-- **暂未发现明显风险，仍建议确认** — no obvious risk found, still check
-- **要小心** — be careful
-- **很可能有问题** — very likely a problem
+- **No obvious risk found, still check** (暂未发现明显风险，仍建议确认)
+- **Be careful** (要小心)
+- **Very likely a problem** (很可能有问题)
 
 ## The agents — a LangGraph state machine (`ai/agent_graph.py`)
 
@@ -159,8 +159,10 @@ the rule-based verdict — no wasted call.)
    conditional edge routes to the `tools` node if it asked for tools, or to `END`
    if it produced a verdict.
 3. The **`tools`** node runs the requested calls **in parallel**
-   (`run_tools_parallel`, a `ThreadPoolExecutor` with a hard timeout) and feeds
-   the results back as one turn, then loops to `reason`.
+   (`run_tools_parallel`, a `ThreadPoolExecutor` with an 8-second deadline — a
+   tool that misses it is reported to the model as timed out instead of
+   failing the step) and feeds the results back as one turn, then loops to
+   `reason`.
 4. The **turn budget is enforced by the graph's edges** — the router refuses to
    re-enter `reason` once the budget is spent, instead of relying on an
    off-by-one `for` loop. The reply is parsed into `{risk, reason, advice}` and
@@ -179,9 +181,8 @@ finishes. Why bother over the ad-hoc loop: named nodes and an explicit router
 make the control flow inspectable, and the turn cap and fallback behaviour live
 in the graph structure instead of imperative bookkeeping.
 
-> The original hand-rolled two-turn loop is kept in **`ai/agent.py`** as a
-> readable contrast; both share the same prompt builder, parser and escalate-only
-> merge, so the safety behaviour can't drift between them.
+> **`ai/agent.py`** holds the pieces the graph uses: the prompts, the reply
+> parser and the escalate-only `pick_higher_risk()` merge.
 
 The two tools:
 
@@ -197,7 +198,7 @@ The two tools:
 A retrieval layer over a curated bilingual corpus of known scams:
 
 - Each scam case (`data/scams_{zh,en}.json`) is embedded with Gemini
-  `text-embedding-004` and stored in a native **pgvector** column
+  `gemini-embedding-001` (requested at 768 dimensions) and stored in a native **pgvector** column
   (`scam_cases.embedding`, `vector(768)`).
 - Retrieval is an indexed nearest-neighbour search in Postgres —
   `ORDER BY embedding <=> query` over an **HNSW cosine index** — so it stays fast
@@ -223,8 +224,8 @@ safety":
 - **Fail-safe, and fail-*loud enough*.** If the API key is missing, the network
   fails, or the model returns a malformed reply, the AI step is skipped and the
   rule-based verdict stands — the app degrades gracefully to the floor. Failures
-  are logged with their error type for observability rather than swallowed
-  silently, so a broken agent is visible instead of quietly disabled.
+  are logged with their error type only (never the user's text), so a broken
+  agent is visible instead of quietly disabled.
 - **Never "safe".** The system prompt forbids the model from ever outputting a
   safe verdict; the parser defaults an unrecognised reply to *caution* rather than
   dropping the warning. Even the lowest verdict is worded "no obvious risk found,
@@ -247,38 +248,45 @@ pgvector and Redis running as containers:
 ```
 Internet ─► Caddy (auto-HTTPS) ─► gunicorn (Flask) ─┬─► PostgreSQL 16 + pgvector
    :443                              :8000           └─► Redis 7
-              observability: OpenTelemetry traces · JSON logs · Prometheus /metrics
+              observability: OpenTelemetry traces · JSON logs · Prometheus /metrics (internal)
 ```
 
 The stack is defined once in `docker-compose.prod.yml` and is reproducible on any
-host. For a managed-services deployment, `infra/` additionally provides a
-**Terraform** stack (ECS Fargate + RDS + ElastiCache + ALB + ECR + Secrets
-Manager + a GitHub-OIDC deploy role) as infrastructure-as-code — the same
-architecture, provisioned on demand.
+host; [`DEPLOY.md`](DEPLOY.md) has the steps. The live site is updated by pulling
+the repo on the server and rebuilding with `docker compose`; no workflow deploys
+to it automatically. Separately, `infra/` contains a **Terraform** stack (ECS
+Fargate + RDS + ElastiCache + ALB + ECR + Secrets Manager + a GitHub-OIDC deploy
+role) for a managed-services version of the same architecture. It is brought up
+on demand and is not what serves the live site.
 
 - **PostgreSQL + pgvector.** History and scam-case embeddings live in Postgres;
   retrieval is a native, HNSW-indexed `embedding <=> query` search. A SQLAlchemy
-  data layer (`db.py`, `repo.py`) keeps SQL out of the routes, and **Alembic**
-  owns schema migrations (`migrations/`, `RUN_POSTGRES.md`).
+  data layer (`db.py`, `repo.py`) keeps SQL out of the routes. The schema is
+  created on first boot by `db.init_db()`; **Alembic** is wired up
+  (`migrations/env.py`) for future schema changes, but no revisions are
+  committed yet (`RUN_POSTGRES.md`).
 - **Redis.** A sliding-window rate limiter (`ratelimit.py`) enforced across all
   workers/tasks via a Lua-atomic Redis script, degrading to an in-process window
   when Redis is unavailable — so a single worker's limit can't be multiplied by
   fan-out, and the app never 500s just because Redis is down.
 - **Observability** (`observability.py`): OpenTelemetry auto-instruments Flask,
   outbound `requests`, and SQLAlchemy into one trace per request; logs are JSON
-  carrying `request_id`/`trace_id`; `/metrics` exposes a Prometheus latency
-  histogram (P50/P95). Each pillar degrades independently if its library is absent.
+  carrying `request_id`/`trace_id`; `/metrics` exposes a Prometheus request-latency
+  histogram (P50/P95 are computed from it in Prometheus). In production the
+  Caddyfile keeps `/metrics` off the public site; it is scraped inside the Docker
+  network. Each pillar degrades independently if its library is absent.
 - **MCP server** (`mcp_server.py`, `MCP.md`): the agent's own tools —
   `check_phone_numbers` and `query_knowledge_base` — are also exposed over the
   **Model Context Protocol**, with published schemas, input validation, and audit
   logging, so any MCP client (Claude Desktop, an IDE, another agent) can call them.
 - **Infrastructure as code** (`infra/`): **Terraform** provisions RDS,
   ElastiCache, ECS Fargate, ECR, Secrets Manager, an ALB, and a GitHub-OIDC
-  deploy role (no long-lived AWS keys).
-- **CI/CD with an eval gate**: GitHub Actions runs the tests and an offline
-  **quality gate** (`evaluate.py`) — a classifier regression in accuracy, scam
-  recall, missed scams, or false alarms fails the build and **blocks the deploy** —
-  then builds the image, pushes to ECR (OIDC), and rolls the ECS service.
+  deploy role (no long-lived AWS keys), for on-demand use.
+- **CI with an eval gate**: on every push, GitHub Actions (`ci.yml`) runs ruff,
+  the tests (against a real pgvector Postgres) and an offline **quality gate**
+  (`evaluate.py`) — a regression in accuracy, scam recall, missed scams, or false
+  alarms fails the build. A manual-only workflow (`deploy.yml`) runs the same
+  gate before building and pushing an image to ECR for the optional ECS stack.
 
 ## Web frontend (`frontend/` — Next.js + TypeScript + Tailwind)
 
@@ -310,8 +318,9 @@ Next.js (TS) ──fetch──► POST /api/check (Flask, CORS-scoped) ──►
 - **ai/agent_graph.py** — the **LangGraph** state machine the app runs: the
   `reason`/`tools` nodes, the conditional router and turn budget, config-injected
   dependencies, and a checkpointer.
-- **ai/agent.py** — the original hand-rolled two-turn loop, kept as a contrast,
-  plus the shared prompt builder, reply parser and escalate-only risk merge.
+- **ai/agent.py** — the prompt builder, reply parser and escalate-only risk
+  merge used by the graph.
+- **ai/verifier.py** — the independent verifier agent's prompt and parser.
 - **frontend/** — the Next.js + TypeScript + Tailwind frontend that calls
   `/api/check`.
 - **ai/tools.py** — the tool declarations plus `query_knowledge_base` and
@@ -339,8 +348,9 @@ Next.js (TS) ──fetch──► POST /api/check (Flask, CORS-scoped) ──►
   by code, so even saved history re-renders in either language.
 - **regions.py** — UK vs China build config (hotline, reporting channel, privacy
   regime) via the `REGION` env var.
-- **schema.sql** — the `checks` table (verdicts, never raw text) and the
-  `scam_cases` RAG table (text + embedding).
+- **db.py**, **repo.py** — the SQLAlchemy models (the `checks` table stores
+  verdicts, never raw text; `scam_cases` holds the RAG text + pgvector embedding)
+  and the queries the routes use.
 - **evaluate.py**, **tests/** — a labelled evaluation set and the accuracy
   harness; unit tests for the judgement logic, CSRF, and per-browser isolation.
 - **templates/**, **static/** — large-font, three-colour (green/amber/red) UI
@@ -370,8 +380,8 @@ now the RAG store and LLM agent, all behind the same escalate-only contract.
 
 I also trained a small character-n-gram TF-IDF + logistic-regression classifier
 (`train_model.py`, `model/`) for the same escalate-only slot. Measured honestly
-it doesn't yet earn its place (~0.61 CV F1 on a 64-example corpus; the scam/benign
-probabilities overlap), so it's **off by default** — the honest lesson being that
+it doesn't yet earn its place (5-fold cross-validated F1 0.61 ± 0.31 on a
+64-example corpus, printed by `python train_model.py`), so it's **off by default** — the honest lesson being that
 here the bottleneck is *data, not architecture*. It's kept behind the
 deterministic floor so it can be switched on safely once there's enough data. The
 web app needs no ML dependencies to run.
@@ -398,8 +408,9 @@ as a security tool, not just a web form:
   category, matched signals and timestamp are saved, keyed to an anonymous
   per-browser id, so each visitor sees only their own history.
 - **AI is opt-in and privacy-scoped** — the agent is off unless `GEMINI_API_KEY`
-  is set; with no key the whole app runs locally. Only the message text (capped)
-  is sent to Gemini for the second-opinion pass, never the user's history or id.
+  is set; with no key the whole app runs locally. When it is on, the submitted
+  text (and any uploaded screenshot, for OCR) is sent to Google Gemini — the
+  in-app privacy page says so — but never the user's history or id.
 - **Prompt-injection hardening** — user text is passed to the model as tagged
   data with explicit instructions to ignore embedded directives.
 - **No SQL injection / no XSS** — every query is parameterised; all user content
@@ -408,11 +419,14 @@ as a security tool, not just a web form:
   metadata addresses, and the final URL is re-checked **after redirects** so an
   external page can't bounce the fetcher onto an internal address.
 - **CSRF** — every POST form carries a per-session token; `SameSite=Lax` cookies
-  are a second layer. Session cookies are `HttpOnly` and `Secure` in production.
+  are a second layer. Session cookies are `HttpOnly`, and `Secure` in production
+  (`APP_ENV=production`, set by `docker-compose.prod.yml`).
 - **Right to erase** — `POST /history/clear` deletes a browser's records.
-- **Config hardening** — `debug` off in production; the secret key is *required*
-  from the environment (no fallback); dependencies pinned; `source` whitelisted;
-  submitted text length-capped; POSTs rate-limited per client IP.
+- **Config hardening** — `debug` off in production; in production
+  (`APP_ENV=production`, or on Render) the app refuses to start without
+  `SECRET_KEY`; `source` whitelisted; submitted text length-capped; POSTs
+  rate-limited per client IP, with the IP taken from the trusted proxy hop
+  (Werkzeug `ProxyFix`) so a forged `X-Forwarded-For` can't dodge the limit.
 - **Logging** — verdicts and errors are logged for observability, but **never**
   the text the user submitted.
 - **Tested** — `python -m pytest` covers the judgement logic, CSRF rejection and
@@ -420,7 +434,8 @@ as a security tool, not just a web form:
 
 ## Policy-compliant AI research prototype
 
-`policy_compliance.py` models a separated data-owner / AI-service /
+`policy_compliance.py` is a small, separate research prototype (not part of the
+scam-check flow). It models a separated data-owner / AI-service /
 policy-authority workflow. `POST /api/policy-check` evaluates access without
 receiving the protected payload, then returns a signed, hash-linked audit event
 and a public key for verification. This proves the integrity of the decision
@@ -432,7 +447,9 @@ The synthetic baseline can be reproduced with:
 python research/evaluate_policy_tradeoffs.py
 ```
 
-It reports policy accuracy, protected-data exposure rate and decision latency.
+It reports policy accuracy, protected-data exposure rate and decision latency on
+4 synthetic cases (`research/policy-tradeoff-baseline.json`) — a smoke test of
+the mechanism, not a benchmark.
 The next research extensions are federated learning/differential privacy and a
 benchmark against MPC or zero-knowledge enforcement.
 
@@ -451,8 +468,8 @@ docker compose up --build
 ```
 
 Then open `http://localhost:8000` for the server-rendered app. The page is
-mobile-friendly, and `http://localhost:8000/metrics` exposes the Prometheus
-metrics. See [`RUN_POSTGRES.md`](RUN_POSTGRES.md) for running against Postgres
+mobile-friendly, and locally `http://localhost:8000/metrics` exposes the
+Prometheus metrics. See [`RUN_POSTGRES.md`](RUN_POSTGRES.md) for running against Postgres
 without Docker and for the Alembic migration workflow.
 
 **For the Next.js frontend**, with the backend running, start the dev server
