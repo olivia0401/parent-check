@@ -27,7 +27,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SITE_ADDRESS: security-check.example.invalid
-      SECRETS_DIRECTORY: ${{ runner.temp }}/parentcheck-secrets/current
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,6 +36,8 @@ jobs:
           python-version: "3.12"
       - name: Prepare synthetic secrets (no AWS access)
         run: |
+          export SECRETS_DIRECTORY="$RUNNER_TEMP/parentcheck-secrets/current"
+          echo "SECRETS_DIRECTORY=$SECRETS_DIRECTORY" >> "$GITHUB_ENV"
           python - <<'PY'
           import os
           import secrets
