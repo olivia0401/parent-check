@@ -33,7 +33,7 @@ Secrets Manager is already protecting this EC2 deployment.
 
 The reviewed code defects R1–R19 have now been addressed locally; see
 [BUGFIXES.md](BUGFIXES.md) for the implementation and validation matrix.
-Cloud migration and real Docker/production acceptance remain separate.
+Cloud migration and live production acceptance remain separate.
 
 - Host-only Secrets Manager exporter using temporary EC2 role credentials and
   one exact-secret GetSecretValue policy; no AWS keys given to application
@@ -58,9 +58,13 @@ Cloud migration and real Docker/production acceptance remain separate.
   full history and checkout and exercises production Compose with synthetic
   secrets, a real DB, a non-root process and the read-only mounts.
 
-The native Windows suite skips Linux filesystem tests; the deployment tests
-also run separately under WSL Linux. Real Docker integration is still unavailable
-on this host. CI configuration is prepared, not evidence of a completed CI run. Follow [DEPLOY.md](DEPLOY.md) for live acceptance, migration, rotation,
+The native Windows suite skips Linux filesystem tests; GitHub Linux CI passes
+all 196 backend tests without skips, plus frontend checks, dependency audits and
+the 61-case evaluation ([CI evidence](https://github.com/olivia0401/parent-check/actions/runs/41064384891)).
+Production-shaped Docker Compose integration and full-history/checkout secret
+scanning also pass ([security evidence](https://github.com/olivia0401/parent-check/actions/runs/41064384875)).
+These runs use synthetic secrets and do not validate the live AWS deployment.
+Follow [DEPLOY.md](DEPLOY.md) for live acceptance, migration, rotation,
 reboot recovery and the trusted root/Docker operator boundary.
 
 ## Scope and remaining work

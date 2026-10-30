@@ -1,7 +1,8 @@
 # Parent-Check 修复交付记录
 
 2026-10-30：代码审查确认的 R1–R19 已在当前工作区修复，并补充回归测试。
-这些改动尚未提交、推送或部署。原始问题与复现保留在 [CODE_REVIEW.md](CODE_REVIEW.md)。
+这些改动已提交并推送至[草稿 PR #1](https://github.com/olivia0401/parent-check/pull/1)，尚未部署。
+原始问题与复现保留在 [CODE_REVIEW.md](CODE_REVIEW.md)。
 
 ## 修复对应表
 
@@ -41,6 +42,11 @@
 
 ## 验证结果
 
+- GitHub Linux CI：后端 **196 passed，无跳过**，前端测试/构建、依赖审计与质量门禁通过。
+  [CI 证据](https://github.com/olivia0401/parent-check/actions/runs/41064384891)。
+- 真实 Docker Compose 的 PostgreSQL、Redis、生产密钥挂载、非 root 运行及 HTTP 边界检查通过；
+  完整历史与 checkout 密钥扫描通过。
+  [安全工作流证据](https://github.com/olivia0401/parent-check/actions/runs/41064384875)。
 - 完整依赖的 Python 3.12 隔离环境：ruff 通过；后端 pytest **191 passed / 5 skipped**。
 - 跳过项是 Windows 不具备的 Linux 文件系统语义；WSL Linux 部署专项 **6 passed**，
   并单独验证密钥目录 0700、挂载文件 0444、快照切换与旧文件保留。
@@ -52,8 +58,8 @@
 
 ## 部署前还要完成的验收
 
-当前机器没有 Docker daemon，生产 Compose 的真实 PostgreSQL/Redis/密钥挂载集成由
-`.github/workflows/security.yml` 验证；该工作流还没有因这些未提交改动而运行。
+当前机器没有 Docker daemon；生产 Compose 集成已由 GitHub Linux runner 验证。
+现有 EC2 的网络、IAM、备份恢复和真实供应商调用仍需上线验收。
 测试没有调用真实付费 LLM/OCR，也没有操作生产数据库或生产 Secret。
 
 更新现有 EC2 即可应用修复，不需要重建数据库。生产现在必须配置可用的 Redis；
