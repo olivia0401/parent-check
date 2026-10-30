@@ -4,7 +4,16 @@ parent_check.db
 *.joblib
 
 # Secrets — never commit. Only the *.example env files are tracked.
-.env
+.env*
+!.env*.example
+*.pem
+*.key
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform/
+secrets/
 
 # Local-only working files (not part of the project)
 prompt test/

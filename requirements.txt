@@ -3,13 +3,14 @@ flask-cors>=4.0.0
 gunicorn==23.0.0
 requests>=2.31.0
 beautifulsoup4>=4.12.0
+Pillow>=13.0.0,<14
 cryptography>=42.0.0
 
 # Agent orchestration: the scam-analysis loop is a LangGraph state machine.
-langgraph>=0.2.0
+langgraph>=0.2.0,<2
 
 # Data layer: PostgreSQL + pgvector, with Alembic for migrations.
-SQLAlchemy>=2.0.30
+SQLAlchemy>=2.0.30,<2.1
 psycopg2-binary>=2.9.9
 pgvector>=0.3.0
 alembic>=1.13.0
@@ -24,4 +25,4 @@ opentelemetry-exporter-otlp-proto-http>=1.27.0
 prometheus-client>=0.20.0
 
 # MCP server: expose the scam-analysis tools over the Model Context Protocol.
-mcp>=1.2.0
+mcp>=1.2.0,<2

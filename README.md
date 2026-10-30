@@ -401,6 +401,10 @@ configured (`pip install -r requirements-qe.txt`):
 
 ## Security and privacy
 
+See [SECURITY.md](SECURITY.md) for verified cloud findings, local hardening and
+remaining gaps. The Secrets Manager EC2 migration is prepared in this checkout;
+it is not yet deployed. [DEPLOY.md](DEPLOY.md) includes the acceptance checklist.
+
 Because users paste real messages that may contain personal data, I treated this
 as a security tool, not just a web form:
 
@@ -415,9 +419,9 @@ as a security tool, not just a web form:
   data with explicit instructions to ignore embedded directives.
 - **No SQL injection / no XSS** — every query is parameterised; all user content
   is rendered through Jinja autoescaping (no `| safe`).
-- **SSRF protection** — pasted links are validated against internal/loopback/
-  metadata addresses, and the final URL is re-checked **after redirects** so an
-  external page can't bounce the fetcher onto an internal address.
+- **SSRF protection** — each link/redirect resolves to public addresses and the
+  TCP connection is pinned to the validated IP, retaining TLS hostname checks.
+  Article downloads have a 2 MiB cap and a shared 12-second deadline.
 - **CSRF** — every POST form carries a per-session token; `SameSite=Lax` cookies
   are a second layer. Session cookies are `HttpOnly`, and `Secure` in production
   (`APP_ENV=production`, set by `docker-compose.prod.yml`).
@@ -427,6 +431,8 @@ as a security tool, not just a web form:
   `SECRET_KEY`; `source` whitelisted; submitted text length-capped; POSTs
   rate-limited per client IP, with the IP taken from the trusted proxy hop
   (Werkzeug `ProxyFix`) so a forged `X-Forwarded-For` can't dodge the limit.
+  Production requires Redis; unavailable shared throttling returns 503 and is
+  retried, while local development can use memory.
 - **Logging** — verdicts and errors are logged for observability, but **never**
   the text the user submitted.
 - **Tested** — `python -m pytest` covers the judgement logic, CSRF rejection and
@@ -440,6 +446,8 @@ policy-authority workflow. `POST /api/policy-check` evaluates access without
 receiving the protected payload, then returns a signed, hash-linked audit event
 and a public key for verification. This proves the integrity of the decision
 record and policy path; it is not yet a full zero-knowledge, MPC or FHE proof.
+Caller-supplied identities on this public demo endpoint are not authenticated;
+the endpoint does not authorize access to real user records.
 
 The synthetic baseline can be reproduced with:
 

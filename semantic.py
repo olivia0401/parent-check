@@ -8,8 +8,9 @@
 # off unless SEMANTIC_MODEL is set.
 
 import os
+import re
 
-from normalize import compact
+from normalize import compact, to_halfwidth
 
 # matched on the compact form so spacing/full-width/case don't matter
 _NUMBER_CHANGE = [
@@ -51,7 +52,7 @@ _FAMILY = [
     "grandson",
     "granddaughter",
 ]
-_URGENCY = ["急", "赶紧", "马上", "尽快", "quickly", "urgent", "asap"]
+_URGENCY = ["急", "赶紧", "马上", "尽快", "quickly", "urgent", "urgently", "asap"]
 
 
 def escalate(content):
@@ -59,7 +60,16 @@ def escalate(content):
     c = compact(content)
 
     def hits(terms):
-        return [t for t in terms if compact(t) in c]
+        spaced = to_halfwidth(content).lower()
+        return [
+            t
+            for t in terms
+            if (
+                compact(t) in c
+                if re.search(r"[一-鿿]", t)
+                else re.search(r"(?<![a-z0-9])" + re.escape(t) + r"(?![a-z0-9])", spaced)
+            )
+        ]
 
     nc, money, fam, urg = (
         hits(_NUMBER_CHANGE),

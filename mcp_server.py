@@ -84,8 +84,9 @@ def query_knowledge_base(text: str, lang: str = "en") -> dict:
             return {"error": "knowledge base unavailable: GEMINI_API_KEY not set"}
         rag = ScamRAGEngine(llm, lang)
         return execute_query_rag(text, rag, lang)
-    except Exception as e:
-        return {"error": f"knowledge base lookup failed: {e}"}
+    except Exception as exc:
+        log.warning("Knowledge base lookup failed: %s", type(exc).__name__)
+        return {"error": "knowledge_base_unavailable"}
 
 
 if __name__ == "__main__":

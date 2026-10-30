@@ -39,6 +39,7 @@ Shared prompt/parsing helpers live in agent.py (analyst) and verifier.py
     verifier, leaves the analyst verdict untouched,
   * user text is wrapped as data to blunt prompt injection.
 """
+
 import logging
 import os
 import uuid
@@ -53,7 +54,7 @@ from .agent import (
     parse_ai_reply,
     pick_higher_risk,
 )
-from .tools import TOOL_DECLARATIONS, run_tools_parallel
+from .tools import MAX_TOOL_CALLS, TOOL_DECLARATIONS, run_tools_parallel
 from .verifier import build_verifier_prompt, parse_verifier_reply
 
 logger = logging.getLogger(__name__)
@@ -72,15 +73,16 @@ def _verifier_enabled():
 
 class AgentState(TypedDict):
     """Everything a single analysis run carries through the graph."""
+
     content: str
     lang: str
     existing_risk: str
-    messages: list           # Gemini-format conversation ("contents")
-    tools_called: list        # names of tools the model invoked, for the UI
-    turns: int                # how many times `reason` has run
-    pending_calls: list | None   # tool calls waiting to be executed
-    result: dict | None    # final verdict dict, or None to fall back
-    done: bool                # set once we have a terminal answer
+    messages: list  # Gemini-format conversation ("contents")
+    tools_called: list  # names of tools the model invoked, for the UI
+    turns: int  # how many times `reason` has run
+    pending_calls: list | None  # tool calls waiting to be executed
+    result: dict | None  # final verdict dict, or None to fall back
+    done: bool  # set once we have a terminal answer
 
 
 def _final(existing_risk, parsed, tools_called):
@@ -123,6 +125,8 @@ def reason_node(state: AgentState, config) -> dict:
 
     # Model asked for tool(s) → record them and hand off to the tools node.
     calls = response["calls"]
+    if len(calls) > MAX_TOOL_CALLS:
+        return {"turns": turns, "done": True, "result": None}
     return {
         "turns": turns,
         "messages": state["messages"] + [{"role": "model", "parts": response["raw_parts"]}],
@@ -134,11 +138,15 @@ def reason_node(state: AgentState, config) -> dict:
 def tools_node(state: AgentState, config) -> dict:
     """Run every tool the model asked for, then feed results back as one turn."""
     rag = config["configurable"]["rag"]
-    results = run_tools_parallel(
-        state["pending_calls"], rag, state["lang"], state["content"]
-    )
+    results = run_tools_parallel(state["pending_calls"], rag, state["lang"], state["content"])
     responses = [
-        {"functionResponse": {"name": r["name"], "response": r["response"]}}
+        {
+            "functionResponse": {
+                "name": r["name"],
+                "response": r["response"],
+                **({"id": r["id"]} if "id" in r else {}),
+            }
+        }
         for r in results
     ]
     return {
@@ -163,12 +171,16 @@ def verify_node(state: AgentState, config) -> dict:
         return {}
 
     llm = config["configurable"]["llm"]
-    reply = llm.generate(
-        build_verifier_prompt(state["content"], state["lang"], result),
-        temperature=0.0,
-        trace_label="scam.verify",
-    )
-    escalation = parse_verifier_reply(reply, state["lang"])
+    try:
+        reply = llm.generate(
+            build_verifier_prompt(state["content"], state["lang"], result),
+            temperature=0.0,
+            trace_label="scam.verify",
+        )
+        escalation = parse_verifier_reply(reply, state["lang"])
+    except Exception as exc:
+        logger.warning("Verifier failed: %s", type(exc).__name__)
+        return {}  # A failed verifier must preserve the analyst's escalation.
     if escalation is None:
         return {}  # verifier agrees → keep the analyst verdict
 
@@ -209,7 +221,8 @@ def _build_graph(checkpointer):
     graph.add_node("verify", verify_node)
     graph.set_entry_point("reason")
     graph.add_conditional_edges(
-        "reason", _route_after_reason,
+        "reason",
+        _route_after_reason,
         {"tools": "tools", "verify": "verify", END: END},
     )
     graph.add_edge("tools", "reason")
@@ -237,7 +250,6 @@ def analyze(content, lang, existing_risk, llm, rag):
     if not llm.available:
         return None
 
-    graph = _get_graph()
     initial: AgentState = {
         "content": content,
         "lang": lang,
@@ -255,17 +267,19 @@ def analyze(content, lang, existing_risk, llm, rag):
     config = {"configurable": {"thread_id": thread_id, "llm": llm, "rag": rag}}
 
     try:
+        graph = _get_graph()
         final_state = graph.invoke(initial, config)
         return final_state.get("result")
-    except Exception:
+    except Exception as exc:
         # Fail-safe: a broken AI step must never lower the rule-based verdict.
         # Log the error type (never the user's text).
-        logger.warning("LangGraph AI step failed (keeping rule-based result)", exc_info=True)
+        logger.warning("LangGraph AI step failed: %s (keeping rules)", type(exc).__name__)
         return None
     finally:
         # A scam check is single-shot; drop the run's checkpoints so the
         # in-memory saver can't grow without bound.
         try:
-            graph.checkpointer.delete_thread(thread_id)
+            if _COMPILED is not None:
+                _COMPILED.checkpointer.delete_thread(thread_id)
         except Exception:
             pass

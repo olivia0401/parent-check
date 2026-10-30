@@ -4,6 +4,7 @@
 # live threat-intel source instead.
 
 import re
+from urllib.parse import urlsplit
 
 # A link that scores danger points if matched.
 URL_RE = re.compile(r"(?:https?://|www\.)[^\s，。、！？；）)]+", re.IGNORECASE)
@@ -57,10 +58,12 @@ PREMIUM_PHONE_RE = re.compile(r"\b0(?:9\d{2}|70\d)\s?\d{3}\s?\d{3,4}\b")
 
 def _host(url):
     """Extract the host part of a URL (no scheme, no www., no path)."""
-    u = re.sub(r"^https?://", "", url, flags=re.IGNORECASE)
-    u = re.sub(r"^www\.", "", u, flags=re.IGNORECASE)
-    host = u.split("/")[0].split("?")[0].lower()
-    return host.strip(" .,;:!?'\"()[]")
+    try:
+        url = url.rstrip(".,;:!?'\"<>")
+        parsed = urlsplit(url if "://" in url else "https://" + url)
+        return (parsed.hostname or "").rstrip(".").encode("idna").decode().lower()
+    except (ValueError, UnicodeError):
+        return ""
 
 
 def check(content):
@@ -75,17 +78,21 @@ def check(content):
 
     for url in URL_RE.findall(content):
         host = _host(url)
-        bad = (
+        strong = (
             re.match(r"\d{1,3}(?:\.\d{1,3}){3}$", host)  # raw IP address
-            or host in SHORTENERS
-            or host in SAMPLE_BLOCKLIST
+            or any(host == item or host.endswith("." + item) for item in SAMPLE_BLOCKLIST)
             or host.startswith("xn--")
             or ".xn--" in host  # punycode look-alike
+        )
+        # A country/TLD or a shortener alone is not evidence of a scam.
+        weak = (
+            any(host == item or host.endswith("." + item) for item in SHORTENERS)
             or host.rsplit(".", 1)[-1] in BAD_TLDS
         )
+        bad = strong or weak
         if bad and host not in seen:
             seen.add(host)
-            danger += 3
+            danger += 3 if strong else 1
             reasons.append(host)
 
     for match in PREMIUM_PHONE_RE.findall(content):

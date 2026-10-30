@@ -19,7 +19,7 @@ export interface CheckResponse {
   category: string;
   reasons: string[];
   summary: string;
-  advice: string;
+  advice: string[];
   child_message: string;
   ai_reason: string;
   ai_advice: string;

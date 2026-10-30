@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CheckResponse, Lang, Source } from "@/lib/types";
 import { UI } from "@/lib/i18n";
 import { checkMessage, checkImage } from "@/lib/api";
@@ -21,16 +21,24 @@ export default function Home() {
   const [result, setResult] = useState<CheckResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const previewRef = useRef<string | null>(null);
 
   const t = UI[lang];
+
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
+  useEffect(() => () => {
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+  }, []);
 
   // Swap in a new preview (an object URL for the picked file) and free the old
   // one. Pass null to clear it, e.g. when the user runs a text check instead.
   function showPreview(file: File | null) {
-    setImagePreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return file ? URL.createObjectURL(file) : null;
-    });
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    previewRef.current = file ? URL.createObjectURL(file) : null;
+    setImagePreview(previewRef.current);
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -80,7 +88,14 @@ export default function Home() {
             <button
               key={l}
               type="button"
-              onClick={() => setLang(l)}
+              disabled={loading}
+              onClick={() => {
+                if (l !== lang) {
+                  setLang(l);
+                  setResult(null);
+                  setError(null);
+                }
+              }}
               className={`rounded-full px-3 py-1 text-sm font-medium transition ${
                 lang === l
                   ? "bg-slate-900 text-white"
@@ -185,6 +200,7 @@ export default function Home() {
       )}
 
       <footer className="mt-10 text-center text-xs text-slate-400">
+        <p>{t.historyNotice}</p>
         {t.poweredBy}
       </footer>
     </main>

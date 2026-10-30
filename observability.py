@@ -16,12 +16,17 @@ configured:
 
 setup(app, engine) is a no-op for whichever pillar's libraries are missing.
 """
+import ipaddress
 import json
 import logging
+import os
 import time
 import uuid
+from urllib.parse import unquote, urlsplit
 
-from flask import g, request
+from flask import abort, g, request
+
+from runtime_secrets import SECRET_NAMES
 
 # --- optional deps: import-guarded so the app runs without them --------------
 try:
@@ -61,6 +66,20 @@ class _JsonFormatter(logging.Formatter):
                 payload[attr] = val
         if record.exc_info:
             payload["exc"] = self.formatException(record.exc_info)
+        # Defense in depth for exception messages from dependencies. App code
+        # still logs metadata only; this is not a substitute for that rule.
+        sensitive = [os.environ.get(name, "") for name in SECRET_NAMES]
+        try:
+            password = urlsplit(os.environ.get("DATABASE_URL", "")).password
+            if password:
+                sensitive.extend([password, unquote(password)])
+        except ValueError:
+            pass
+        for key, value in payload.items():
+            if isinstance(value, str):
+                for secret in sorted(set(filter(None, sensitive)), key=len, reverse=True):
+                    value = value.replace(secret, "[REDACTED]")
+                payload[key] = value
         return json.dumps(payload, ensure_ascii=False)
 
 
@@ -101,7 +120,6 @@ def setup(app, engine=None):
     # 2. OpenTelemetry tracing (exports only if a collector endpoint is set)
     if _OTEL:
         provider = TracerProvider(resource=Resource.create({"service.name": SERVICE_NAME}))
-        import os
         if os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
             from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
                 OTLPSpanExporter,
@@ -117,13 +135,13 @@ def setup(app, engine=None):
     @app.before_request
     def _start_timer():
         g._t0 = time.perf_counter()
-        g._rid = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:16]
+        g._rid = uuid.uuid4().hex[:16]
 
     @app.after_request
     def _log_and_measure(response):
         latency_ms = round((time.perf_counter() - getattr(g, "_t0", time.perf_counter())) * 1000, 1)
         # Prometheus (use url_rule so paths don't explode metric cardinality)
-        path = request.url_rule.rule if request.url_rule else request.path
+        path = request.url_rule.rule if request.url_rule else "unmatched"
         if _PROM:
             _REQ_COUNT.labels(request.method, path, response.status_code).inc()
             _REQ_LATENCY.labels(request.method, path).observe(latency_ms / 1000)
@@ -146,6 +164,14 @@ def setup(app, engine=None):
     if _PROM:
         @app.route("/metrics")
         def metrics():
+            # Metrics are for direct internal scrapes, never public reverse-proxy
+            # traffic. Keep this guard even when the Caddy deny rule is present.
+            try:
+                peer = ipaddress.ip_address(request.remote_addr or "")
+            except ValueError:
+                abort(404)
+            if request.headers.get("X-Forwarded-For") is not None or not (peer.is_private or peer.is_loopback):
+                abort(404)
             return generate_latest(), 200, {"Content-Type": CONTENT_TYPE_LATEST}
 
     app.logger.info(

@@ -22,6 +22,7 @@ export const UI: Record<Lang, {
   emergency: string;
   errorTitle: string;
   poweredBy: string;
+  historyNotice: string;
 }> = {
   zh: {
     title: "爸妈求证",
@@ -47,6 +48,7 @@ export const UI: Record<Lang, {
     emergency: "紧急电话",
     errorTitle: "出错了",
     poweredBy: "规则引擎 + LangGraph AI 二次核查 · 风险只增不降",
+    historyNotice: "此页面不保存历史记录。切换语言后，请重新检查以获取对应语言的结果。",
   },
   en: {
     title: "Parent Check",
@@ -73,6 +75,7 @@ export const UI: Record<Lang, {
     emergency: "Emergency number",
     errorTitle: "Something went wrong",
     poweredBy: "Rule engine + LangGraph AI second opinion · risk only ever rises",
+    historyNotice: "This page does not save history. After changing language, run the check again for a translated result.",
   },
 };
 

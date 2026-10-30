@@ -9,7 +9,7 @@ import os
 import secrets
 import threading
 
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -18,21 +18,12 @@ import observability
 import ocr
 import repo
 from fetch_url import fetch_article, is_url
-from helpers import analyze_content, build_view
+from helpers import analyze_content, apply_ai_verdict, build_view, merge_verdicts
 from policy_compliance import PolicyAuthority, SignedAuditLedger
-from ratelimit import RateLimiter
+from ratelimit import RateLimiter, RateLimitUnavailable
 from regions import current_region, current_region_code
+from runtime_secrets import is_production, validate_session_key
 from translations import TRANSLATIONS
-
-
-def is_production():
-    """True when running as a real deployment. Set APP_ENV=production (the EC2
-    docker-compose.prod.yml does this); Render is detected via its RENDER var."""
-    return (
-        os.environ.get("APP_ENV", "").strip().lower() == "production"
-        or bool(os.environ.get("RENDER"))
-    )
-
 
 PRODUCTION = is_production()
 
@@ -40,9 +31,9 @@ app = Flask(__name__)
 # In production a missing SECRET_KEY is a hard error - locally we just fall
 # back to a dev key.
 _secret = os.environ.get("SECRET_KEY")
+if PRODUCTION:
+    validate_session_key(_secret)
 if not _secret:
-    if PRODUCTION:
-        raise RuntimeError("SECRET_KEY must be set in production (APP_ENV=production)")
     _secret = "dev-only-key-not-for-production"
 app.secret_key = _secret
 
@@ -61,6 +52,9 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=PRODUCTION,
+    MAX_CONTENT_LENGTH=ocr.MAX_BYTES + 64 * 1024,
+    MAX_FORM_MEMORY_SIZE=64 * 1024,
+    MAX_FORM_PARTS=10,
 )
 
 # The Next.js frontend runs on its own origin and calls /api/*. Allow just
@@ -70,8 +64,8 @@ CORS(app, resources={r"/api/*": {"origins": FRONTEND_ORIGIN}})
 
 MAX_CONTENT = 5000  # cap on submitted text length
 
-# Rate limit per IP, enforced across all workers via Redis (falls back to an
-# in-process window if REDIS_URL is unset/unreachable - see ratelimit.py).
+# Rate limit per IP, enforced across workers through Redis. Development can
+# fall back to memory; production returns 503 while shared throttling is offline.
 RATE_LIMIT = 30
 RATE_WINDOW = 60
 _limiter = RateLimiter(RATE_LIMIT, RATE_WINDOW)
@@ -157,6 +151,39 @@ def remember_language():
 
 
 @app.before_request
+def validate_request_envelope():
+    """Reject oversized/malformed bodies before DB, OCR, URL fetches or AI."""
+    if request.content_length and request.content_length > app.config["MAX_CONTENT_LENGTH"]:
+        abort(413)
+    if request.method == "POST" and request.path in {"/api/check", "/api/policy-check"}:
+        request.max_content_length = 64 * 1024
+        if not request.is_json:
+            return jsonify({"error": "json_required"}), 415
+        if not isinstance(request.get_json(silent=True), dict):
+            return jsonify({"error": "invalid_json_object"}), 400
+
+
+@app.errorhandler(413)
+def payload_too_large(_error):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "payload_too_large"}), 413
+    return "Request is too large.", 413
+
+
+@app.after_request
+def security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Frame-Options"] = "DENY"
+    # Results and browser history can contain personal information.
+    if request.path.startswith(("/api/", "/history", "/check", "/feedback")):
+        response.headers["Cache-Control"] = "no-store"
+    if PRODUCTION:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000"
+    return response
+
+
+@app.before_request
 def ensure_database():
     """Initialize the schema once and return a clear error if it is offline."""
     global _db_ready
@@ -165,8 +192,8 @@ def ensure_database():
     try:
         db.init_db()
         _db_ready = True
-    except Exception:
-        app.logger.exception("Database initialization failed")
+    except Exception as exc:
+        app.logger.error("Database initialization failed: %s", type(exc).__name__)
         if request.path.startswith("/api/"):
             return jsonify({"error": "database_unavailable"}), 503
         return "Service temporarily unavailable: database is not ready.", 503
@@ -183,8 +210,16 @@ def rate_limit():
         return None
     # ProxyFix has already resolved remote_addr from the trusted proxy hop.
     ip = request.remote_addr or "?"
-    if not _limiter.allow(ip):
+    try:
+        allowed = _limiter.allow(ip)
+    except RateLimitUnavailable:
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "rate_limiter_unavailable"}), 503, {"Retry-After": "5"}
+        return "Service temporarily unavailable. Please try again.", 503, {"Retry-After": "5"}
+    if not allowed:
         app.logger.warning("rate limit hit for %s", ip)
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "rate_limited"}), 429, {"Retry-After": str(RATE_WINDOW)}
         return "Too many requests, please slow down.", 429
     return None
 
@@ -224,6 +259,18 @@ def index():
     return render_template("index.html", sources=SOURCE_CODES)
 
 
+@app.route("/healthz")
+def healthz():
+    try:
+        with db.engine.connect() as connection:
+            connection.execute(db.text("SELECT 1"))
+        if not _limiter.healthy():
+            return jsonify({"status": "unavailable"}), 503
+    except Exception:
+        return jsonify({"status": "unavailable"}), 503
+    return jsonify({"status": "ok"})
+
+
 @app.route("/check", methods=["POST"])
 def check():
     """Analyze submitted text, store the result, and show the result page."""
@@ -237,15 +284,17 @@ def check():
 
     # If the user pasted a URL, fetch the article text first.
     fetched_title = ""
+    url_evidence = ()
     if is_url(content):
         t_lang = TRANSLATIONS[current_lang()]
         fetch = fetch_article(content)
         if fetch["ok"]:
+            url_evidence = tuple(fetch.get("urls", [content]))
             fetched_title = fetch.get("title", "")
             content = fetch["text"]
         else:
             error_key = {
-                "timeout":    "url_error_timeout",
+                "timeout": "url_error_timeout",
                 "no_content": "url_error_no_content",
                 "unsafe_url": "url_error_unsafe",
             }.get(fetch["error"], "url_error_generic")
@@ -256,10 +305,27 @@ def check():
                 prefill=request.form.get("content", ""),
             )
 
-    return _render_check(content, source, fetched_title)
+    return _render_check(content, source, fetched_title, url_evidence=url_evidence)
 
 
-def _render_check(content, source, fetched_title="", ocr_text=""):
+def _evaluate(content, source, lang, url_evidence=()):
+    """One final verdict for HTML, JSON and the persisted history evidence."""
+    result = merge_verdicts(
+        analyze_content(content, source), *(analyze_content(url, source) for url in url_evidence)
+    )
+    ai_result = None
+    if _llm and _llm.available:
+        try:
+            from ai import agent_graph as ai_agent
+
+            rag = _rag_zh if lang == "zh" else _rag_en
+            ai_result = ai_agent.analyze(content, lang, result["risk"], _llm, rag)
+        except Exception as exc:
+            app.logger.warning("AI unavailable: %s", type(exc).__name__)
+    return apply_ai_verdict(result, ai_result), ai_result
+
+
+def _render_check(content, source, fetched_title="", ocr_text="", url_evidence=()):
     """
     Shared core for the HTML routes: run the pipeline on `content`, store the
     verdict and render the result page. Used by /check (text / URL) and
@@ -267,21 +333,8 @@ def _render_check(content, source, fetched_title="", ocr_text=""):
     optional LangGraph AI second opinion (raises risk only) -> stored result.
     `ocr_text` is shown on the result page when the content came from an image.
     """
-    result = analyze_content(content, source)
-
-    # Optional second opinion from Gemini. Stays None if it's not configured
-    # or anything goes wrong - the rule-based result is used as-is then.
     lang = current_lang()
-    ai_result = None
-    if _llm and _llm.available:
-        # LangGraph state-machine agent; prompt/parse helpers live in agent.py.
-        from ai import agent_graph as ai_agent
-        rag = _rag_zh if lang == "zh" else _rag_en
-        ai_result = ai_agent.analyze(content, lang, result["risk"], _llm, rag)
-
-    if ai_result:
-        # can only push the risk level up, never down
-        result["risk"] = ai_result["ai_risk"]
+    result, ai_result = _evaluate(content, source, lang, url_evidence)
 
     # Store the verdict/category/matched signals, but not the original text -
     # it might contain personal info the user pasted in.
@@ -346,8 +399,8 @@ def check_image():
     if not ocr_result["ok"]:
         error_key = {
             "unsupported": "image_error_unsupported",
-            "too_large":   "image_error_too_large",
-            "no_text":     "image_error_no_text",
+            "too_large": "image_error_too_large",
+            "no_text": "image_error_no_text",
         }.get(ocr_result["error"], "image_error_failed")
         return render_template(
             "index.html",
@@ -356,13 +409,11 @@ def check_image():
         )
 
     content = ocr_result["text"].strip()[:MAX_CONTENT]
-    app.logger.info(
-        "check-image ocr_engine=%s chars=%d", ocr_result["engine"], len(content)
-    )
+    app.logger.info("check-image ocr_engine=%s chars=%d", ocr_result["engine"], len(content))
     return _render_check(content, source, ocr_text=content)
 
 
-def _analyze_json(content, source, lang, fetched_title=""):
+def _analyze_json(content, source, lang, fetched_title="", url_evidence=()):
     """
     Shared core for the JSON API: run the pipeline on `content` and return the
     verdict as a Flask JSON response. Used by both /api/check (text / URL) and
@@ -370,39 +421,36 @@ def _analyze_json(content, source, lang, fetched_title=""):
     rule engine -> optional LangGraph AI second opinion (raises risk only) ->
     view builder.
     """
-    result = analyze_content(content, source)
-
-    ai_result = None
-    if _llm and _llm.available:
-        from ai import agent_graph as ai_agent
-        rag = _rag_zh if lang == "zh" else _rag_en
-        ai_result = ai_agent.analyze(content, lang, result["risk"], _llm, rag)
-    if ai_result:
-        result["risk"] = ai_result["ai_risk"]  # only ever raises the risk
+    result, ai_result = _evaluate(content, source, lang, url_evidence)
 
     app.logger.info(
         "api check verdict=%s category=%s source=%s ai=%s",
-        result["risk"], result["category"], source, "yes" if ai_result else "no",
+        result["risk"],
+        result["category"],
+        source,
+        "yes" if ai_result else "no",
     )
 
     t = TRANSLATIONS[lang]
     view = build_view(t, result["risk"], result["category"], result["reasons"], source)
 
-    return jsonify({
-        "risk": result["risk"],
-        "category": result["category"],
-        "reasons": view["reasons"],
-        "summary": view["summary"],
-        "advice": view["advice"],
-        "child_message": view["child_message"],
-        "ai_reason": ai_result["reason"] if ai_result else "",
-        "ai_advice": ai_result["advice"] if ai_result else "",
-        "ai_tools": ai_result.get("tools_called", []) if ai_result else [],
-        "actions": ai_result["actions"] if ai_result else [],
-        "emergency_number": current_region()["hotline"],
-        "fetched_title": fetched_title,
-        "used_ai": bool(ai_result),
-    })
+    return jsonify(
+        {
+            "risk": result["risk"],
+            "category": result["category"],
+            "reasons": view["reasons"],
+            "summary": view["summary"],
+            "advice": view["advice"],
+            "child_message": view["child_message"],
+            "ai_reason": ai_result["reason"] if ai_result else "",
+            "ai_advice": ai_result["advice"] if ai_result else "",
+            "ai_tools": ai_result.get("tools_called", []) if ai_result else [],
+            "actions": ai_result["actions"] if ai_result else [],
+            "emergency_number": current_region()["hotline"],
+            "fetched_title": fetched_title,
+            "used_ai": bool(ai_result),
+        }
+    )
 
 
 @app.route("/api/check", methods=["POST"])
@@ -416,7 +464,11 @@ def api_check():
     the exact same pipeline as the HTML /check route: rule engine → optional
     LangGraph AI second opinion (which can only raise the risk) → view builder.
     """
-    data = request.get_json(silent=True) or {}
+    data = request.get_json()
+    if any(key in data and not isinstance(data[key], str) for key in ("content", "source", "lang")):
+        return jsonify({"error": "invalid_field_type"}), 400
+    if len(data.get("content", "")) > MAX_CONTENT:
+        return jsonify({"error": "content_too_long"}), 400
     content = (data.get("content") or "").strip()[:MAX_CONTENT]
     source = data.get("source") or "other"
     if source not in SOURCE_CODES:
@@ -428,21 +480,24 @@ def api_check():
 
     # If the user pasted a URL, fetch the article text first (same as /check).
     fetched_title = ""
+    url_evidence = ()
     if is_url(content):
         fetch = fetch_article(content)
         if fetch["ok"]:
+            url_evidence = tuple(fetch.get("urls", [content]))
             fetched_title = fetch.get("title", "")
             content = fetch["text"]
         else:
             error_key = {
-                "timeout":    "url_error_timeout",
+                "timeout": "url_error_timeout",
                 "no_content": "url_error_no_content",
                 "unsafe_url": "url_error_unsafe",
             }.get(fetch["error"], "url_error_generic")
-            return jsonify({"error": "url_fetch_failed",
-                            "message": TRANSLATIONS[lang][error_key]}), 400
+            return jsonify(
+                {"error": "url_fetch_failed", "message": TRANSLATIONS[lang][error_key]}
+            ), 400
 
-    return _analyze_json(content, source, lang, fetched_title)
+    return _analyze_json(content, source, lang, fetched_title, url_evidence)
 
 
 @app.route("/api/policy-check", methods=["POST"])
@@ -457,8 +512,7 @@ def api_policy_check():
     data = request.get_json(silent=True) or {}
     required = ("principal", "data_owner", "data_class", "purpose")
     if any(
-        not isinstance(data.get(field), str) or not 0 < len(data[field]) <= 64
-        for field in required
+        not isinstance(data.get(field), str) or not 0 < len(data[field]) <= 64 for field in required
     ):
         return jsonify({"error": "invalid_policy_request"}), 400
 
@@ -469,15 +523,17 @@ def api_policy_check():
         purpose=data["purpose"],
     )
     event = _audit_ledger.append(decision)
-    return jsonify({
-        "decision": decision.decision,
-        "reason_code": decision.reason_code,
-        "policy_id": decision.policy_id,
-        "policy_version": decision.policy_version,
-        "audit_event": event,
-        "audit_public_key": _audit_ledger.public_key,
-        "audit_chain_valid": _audit_ledger.verify(),
-    })
+    return jsonify(
+        {
+            "decision": decision.decision,
+            "reason_code": decision.reason_code,
+            "policy_id": decision.policy_id,
+            "policy_version": decision.policy_version,
+            "audit_event": event,
+            "audit_public_key": _audit_ledger.public_key,
+            "audit_chain_valid": _audit_ledger.verify(),
+        }
+    )
 
 
 @app.route("/api/check-image", methods=["POST"])
@@ -507,16 +563,13 @@ def api_check_image():
     if not ocr_result["ok"]:
         error_key = {
             "unsupported": "image_error_unsupported",
-            "too_large":   "image_error_too_large",
-            "no_text":     "image_error_no_text",
+            "too_large": "image_error_too_large",
+            "no_text": "image_error_no_text",
         }.get(ocr_result["error"], "image_error_failed")
-        return jsonify({"error": "image_ocr_failed",
-                        "message": TRANSLATIONS[lang][error_key]}), 400
+        return jsonify({"error": "image_ocr_failed", "message": TRANSLATIONS[lang][error_key]}), 400
 
     content = ocr_result["text"].strip()[:MAX_CONTENT]
-    app.logger.info(
-        "api check-image ocr_engine=%s chars=%d", ocr_result["engine"], len(content)
-    )
+    app.logger.info("api check-image ocr_engine=%s chars=%d", ocr_result["engine"], len(content))
     return _analyze_json(content, source, lang)
 
 
@@ -532,11 +585,15 @@ def detail(check_id):
     """Show the full detail of one past check, rendered in the current language."""
     row = repo.get_check(check_id, current_uid())
     if row is None:
-        return redirect(url_for("history"))
+        abort(404)
 
-    reasons = row["reasons"].split("\n") if row["reasons"] else []
+    # Older records could store an AI escalation with category=none.
+    if row.risk != "ok" and row.category == "none":
+        row.category = "mixed"
+        row.reasons = "\n".join(filter(None, [row.reasons, "ai_escalation"]))
+    reasons = row.reasons.split("\n") if row.reasons else []
     t = TRANSLATIONS[current_lang()]
-    view = build_view(t, row["risk"], row["category"], reasons, row["source"])
+    view = build_view(t, row.risk, row.category, reasons, row.source)
 
     return render_template(
         "detail.html",
@@ -545,6 +602,7 @@ def detail(check_id):
         summary=view["summary"],
         advice=view["advice"],
         child_message=view["child_message"],
+        has_ai_evidence="ai_escalation" in reasons,
     )
 
 
@@ -558,6 +616,8 @@ def clear_history():
 @app.route("/feedback/<int:check_id>", methods=["POST"])
 def feedback(check_id):
     """Record whether a past check was helpful."""
+    if repo.get_check(check_id, current_uid()) is None:
+        abort(404)
     value = 1 if request.form.get("helpful") == "yes" else 0
     repo.set_feedback(check_id, current_uid(), value)
     return redirect(url_for("detail", check_id=check_id))

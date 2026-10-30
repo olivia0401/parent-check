@@ -1,6 +1,9 @@
 # Infrastructure (Terraform)
 
-Provisions the full production stack for Parent Check on AWS:
+Provisions an optional, on-demand demo stack for Parent Check on AWS.
+This is **not the hardened EC2 deployment** in [`../DEPLOY.md`](../DEPLOY.md):
+it still uses HTTP, public subnets, and Terraform state containing secret values.
+Do not use it for real user data until those gaps are resolved.
 
 ```
 Internet

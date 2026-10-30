@@ -21,6 +21,12 @@ npm run dev                        # http://localhost:3000
 The backend allows this origin via CORS (`FRONTEND_ORIGIN`, defaults to
 `http://localhost:3000`).
 
+For a hosted frontend, set `NEXT_PUBLIC_API_BASE` to the public HTTPS Flask
+origin **before building**, and allow the frontend's origin in Flask. Never
+put keys in `NEXT_PUBLIC_*` values. This frontend uses the stateless API and
+does not save history; the Flask HTML frontend offers per-browser history.
+Changing language clears the old localized result so a new check is explicit.
+
 ## Structure
 
 - `app/page.tsx` — the check form (paste text / a link, or upload a screenshot)
@@ -37,3 +43,7 @@ The backend allows this origin via CORS (`FRONTEND_ORIGIN`, defaults to
 ```bash
 npm run build
 ```
+
+Run `npm test` for response-schema/rendering regressions and `npm audit` for
+the locked dependency graph. Next.js uses the patched 15.5 maintenance release;
+the PostCSS override keeps its compatible 8.x dependency on a patched version.

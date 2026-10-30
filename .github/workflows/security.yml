@@ -1,0 +1,60 @@
+name: Security regression
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install checksum-pinned Gitleaks
+        run: |
+          curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -o "$RUNNER_TEMP/gitleaks.tar.gz"
+          printf '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  %s\n' "$RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+      - name: Scan full history and checkout (redacted output)
+        run: |
+          "$RUNNER_TEMP/gitleaks" git --redact --no-banner .
+          "$RUNNER_TEMP/gitleaks" dir --redact --no-banner .
+
+  compose:
+    runs-on: ubuntu-latest
+    env:
+      SITE_ADDRESS: security-check.example.invalid
+      SECRETS_DIRECTORY: ${{ runner.temp }}/parentcheck-secrets/current
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Prepare synthetic secrets (no AWS access)
+        run: |
+          python - <<'PY'
+          import os
+          import secrets
+          from pathlib import Path
+          from ops.export_secrets import secret_files, write_snapshot
+          files = secret_files({
+              "SECRET_KEY": secrets.token_urlsafe(48),
+              "POSTGRES_PASSWORD": secrets.token_urlsafe(48),
+              "GEMINI_API_KEY": "",
+          })
+          write_snapshot(files, Path(os.environ["SECRETS_DIRECTORY"]).parent)
+          PY
+      - name: Validate and start isolated production services
+        run: |
+          docker compose -p parentcheck-security -f docker-compose.prod.yml config --quiet
+          docker compose -p parentcheck-security -f docker-compose.prod.yml up -d --build --wait --wait-timeout 120 db redis web
+      - name: Verify mounted secrets, non-root execution and HTTP boundaries
+        run: docker compose -p parentcheck-security -f docker-compose.prod.yml exec -T web python - < ops/smoke_security.py
+      - name: Remove isolated test services and volumes
+        if: always()
+        run: docker compose -p parentcheck-security -f docker-compose.prod.yml down -v

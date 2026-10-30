@@ -30,6 +30,10 @@ from sqlalchemy.orm import (
     sessionmaker,
 )
 
+from runtime_secrets import load_secret_files
+
+load_secret_files()
+
 try:
     from sqlalchemy.pool import StaticPool
 except ImportError:  # pragma: no cover

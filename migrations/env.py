@@ -21,7 +21,7 @@ config.set_main_option(
     os.environ.get(
         "DATABASE_URL",
         "postgresql+psycopg2://parentcheck:parentcheck@localhost:5432/parentcheck",
-    ),
+    ).replace("%", "%%"),
 )
 
 if config.config_file_name is not None:

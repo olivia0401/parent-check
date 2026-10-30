@@ -17,15 +17,21 @@ Like fetch_url.py, this never raises: it returns
   {"ok": False, "error": "unsupported"|"too_large"|"no_text"|"failed"}
 so the route in app.py can just show a friendly message.
 """
+
 import os
 import time
+import warnings
+from io import BytesIO
 
 import requests
+from PIL import Image, UnidentifiedImageError
 
 MAX_BYTES = 6 * 1024 * 1024  # 6 MB upload cap
 ALLOWED_MIME = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
 MIN_TEXT = 6  # fewer readable chars than this -> treat as "no text found"
 MAX_CHARS = 5000  # same cap the pipeline uses for pasted text
+MAX_PIXELS = 12_000_000
+_IMAGE_MIME = {"PNG": "image/png", "JPEG": "image/jpeg", "WEBP": "image/webp"}
 
 
 def extract_text(image_bytes, mime_type, llm=None):
@@ -35,6 +41,33 @@ def extract_text(image_bytes, mime_type, llm=None):
         return {"ok": False, "error": "unsupported"}
     if not image_bytes or len(image_bytes) > MAX_BYTES:
         return {"ok": False, "error": "too_large"}
+
+    # Decode pixels, verify the real format and discard metadata/trailing data
+    # before any provider sees an upload. Bound both compressed bytes and pixels.
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(BytesIO(image_bytes), formats=list(_IMAGE_MIME)) as image:
+                actual_mime = _IMAGE_MIME.get(image.format)
+                declared_mime = "image/jpeg" if mime_type == "image/jpg" else mime_type
+                if actual_mime != declared_mime or getattr(image, "n_frames", 1) != 1:
+                    return {"ok": False, "error": "unsupported"}
+                if image.width * image.height > MAX_PIXELS:
+                    return {"ok": False, "error": "too_large"}
+                image.load()
+                clean = BytesIO()
+                rgba = image.convert("RGBA")
+                pixels = Image.new("RGB", image.size, "white")
+                pixels.paste(rgba, mask=rgba.getchannel("A"))
+                pixels.save(clean, format="PNG")
+                image_bytes = clean.getvalue()
+                mime_type = "image/png"
+                if len(image_bytes) > MAX_BYTES:
+                    return {"ok": False, "error": "too_large"}
+    except (Image.DecompressionBombWarning, Image.DecompressionBombError):
+        return {"ok": False, "error": "too_large"}
+    except (UnidentifiedImageError, OSError, ValueError, SyntaxError):
+        return {"ok": False, "error": "unsupported"}
 
     # 1. Enterprise OCR backend, if configured. Falls through to Gemini on error.
     if os.environ.get("AZURE_DOC_INTEL_ENDPOINT") and os.environ.get("AZURE_DOC_INTEL_KEY"):
@@ -78,9 +111,9 @@ def _azure_read(image_bytes):
         submit = requests.post(
             f"{endpoint}/documentintelligence/documentModels/prebuilt-read:analyze"
             f"?api-version={AZURE_API_VERSION}",
-            headers={"Ocp-Apim-Subscription-Key": key,
-                     "Content-Type": "application/octet-stream"},
-            data=image_bytes, timeout=15,
+            headers={"Ocp-Apim-Subscription-Key": key, "Content-Type": "application/octet-stream"},
+            data=image_bytes,
+            timeout=15,
         )
         submit.raise_for_status()
         op_url = submit.headers.get("Operation-Location")
@@ -90,7 +123,9 @@ def _azure_read(image_bytes):
         deadline = time.monotonic() + AZURE_POLL_TIMEOUT
         while time.monotonic() < deadline:
             poll = requests.get(
-                op_url, headers={"Ocp-Apim-Subscription-Key": key}, timeout=10,
+                op_url,
+                headers={"Ocp-Apim-Subscription-Key": key},
+                timeout=10,
             )
             poll.raise_for_status()
             body = poll.json()

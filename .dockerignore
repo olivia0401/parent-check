@@ -9,7 +9,23 @@ __pycache__/
 parent_check.db
 tests/
 prompt test/
-.env
+.env*
+**/.env*
+*.pem
+**/*.pem
+*.key
+**/*.key
+**/*.tfstate*
+**/*.tfvars
+**/.terraform
+secrets/
+**/secrets/
+frontend/
+.claude/
+research/
+learn/
+infra/
+ops/
 DEPLOY.md
 OUTREACH.md
 outreach/
