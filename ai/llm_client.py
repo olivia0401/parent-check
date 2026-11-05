@@ -20,6 +20,7 @@ and queried with the same one.
 If anything goes wrong (no API key, network error, bad response) every method
 just returns None, so the rest of the app can carry on without the AI step.
 """
+
 import base64
 import logging
 import os
@@ -37,7 +38,9 @@ except ImportError:
 # has free quota and supports function calling; gemini-embedding-001 replaces
 # the retired embedding model.
 GENERATE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent"
-EMBED_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent"
+EMBED_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent"
+)
 
 # Embedding dimensionality. Must match the pgvector vector(768) column in db.py;
 # both Gemini (outputDimensionality) and Azure text-embedding-3-* (dimensions)
@@ -140,15 +143,23 @@ class LLMClient:
             body = resp.json()
             text = body["candidates"][0]["content"]["parts"][0]["text"]
             llm_trace.log_generation(
-                trace_label, prompt, text, model="gemini-flash-lite-latest",
-                latency_s=time.monotonic() - t0, usage=_usage(body),
+                trace_label,
+                prompt,
+                text,
+                model="gemini-flash-lite-latest",
+                latency_s=time.monotonic() - t0,
+                usage=_usage(body),
             )
             return text
         except Exception as e:
             _log_failure("generate", e)
             llm_trace.log_generation(
-                trace_label, prompt, None, model="gemini-flash-lite-latest",
-                latency_s=time.monotonic() - t0, metadata={"error": True},
+                trace_label,
+                prompt,
+                None,
+                model="gemini-flash-lite-latest",
+                latency_s=time.monotonic() - t0,
+                metadata={"error": True},
             )
             return None
 
@@ -181,7 +192,11 @@ class LLMClient:
                     # longer. (Gemini rejects responseSchema/JSON-mode in the same
                     # request as functionDeclarations, so we ask for JSON in the
                     # prompt and parse leniently instead — see agent.parse_ai_reply.)
-                    "generationConfig": {"temperature": 0.1, "maxOutputTokens": 800, "thinkingConfig": {"thinkingBudget": 0}},
+                    "generationConfig": {
+                        "temperature": 0.1,
+                        "maxOutputTokens": 800,
+                        "thinkingConfig": {"thinkingBudget": 0},
+                    },
                 },
                 timeout=20,
             )
@@ -193,28 +208,47 @@ class LLMClient:
             if func_calls:
                 names = [fc["name"] for fc in func_calls]
                 llm_trace.log_generation(
-                    "scam.agent", messages, f"tool_calls: {names}",
-                    model="gemini-flash-lite-latest", latency_s=time.monotonic() - t0,
-                    usage=_usage(body), metadata={"kind": "function_calls"},
+                    "scam.agent",
+                    messages,
+                    f"tool_calls: {names}",
+                    model="gemini-flash-lite-latest",
+                    latency_s=time.monotonic() - t0,
+                    usage=_usage(body),
+                    metadata={"kind": "function_calls"},
                 )
                 return {
                     "type": "function_calls",
-                    "calls": [{"name": fc["name"], "args": fc.get("args", {})} for fc in func_calls],
+                    "calls": [
+                        {
+                            "name": fc["name"],
+                            "args": fc.get("args", {}),
+                            **({"id": fc["id"]} if "id" in fc else {}),
+                        }
+                        for fc in func_calls
+                    ],
                     "raw_parts": parts,
                 }
 
             text = "".join(p.get("text", "") for p in parts if "text" in p)
             llm_trace.log_generation(
-                "scam.agent", messages, text, model="gemini-flash-lite-latest",
-                latency_s=time.monotonic() - t0, usage=_usage(body),
+                "scam.agent",
+                messages,
+                text,
+                model="gemini-flash-lite-latest",
+                latency_s=time.monotonic() - t0,
+                usage=_usage(body),
                 metadata={"kind": "text"},
             )
             return {"type": "text", "text": text}
         except Exception as e:
             _log_failure("generate_with_tools", e)
             llm_trace.log_generation(
-                "scam.agent", messages, None, model="gemini-flash-lite-latest",
-                latency_s=time.monotonic() - t0, metadata={"error": True},
+                "scam.agent",
+                messages,
+                None,
+                model="gemini-flash-lite-latest",
+                latency_s=time.monotonic() - t0,
+                metadata={"error": True},
             )
             return None
 
@@ -244,13 +278,19 @@ class LLMClient:
                 GENERATE_URL,
                 headers=self._gemini_headers(),
                 json={
-                    "contents": [{"parts": [
-                        {"text": prompt},
-                        {"inlineData": {
-                            "mimeType": mime_type,
-                            "data": base64.b64encode(image_bytes).decode(),
-                        }},
-                    ]}],
+                    "contents": [
+                        {
+                            "parts": [
+                                {"text": prompt},
+                                {
+                                    "inlineData": {
+                                        "mimeType": mime_type,
+                                        "data": base64.b64encode(image_bytes).decode(),
+                                    }
+                                },
+                            ]
+                        }
+                    ],
                     # NB: no thinkingConfig here. Unlike the text endpoints, the
                     # multimodal (image) request rejects thinkingBudget=0 with a
                     # 400 "invalid argument", so we let the model use its default.
@@ -265,15 +305,23 @@ class LLMClient:
             body = resp.json()
             text = body["candidates"][0]["content"]["parts"][0]["text"]
             llm_trace.log_generation(
-                "scam.ocr", "[image]", text, model="gemini-flash-lite-latest",
-                latency_s=time.monotonic() - t0, usage=_usage(body),
+                "scam.ocr",
+                "[image]",
+                text,
+                model="gemini-flash-lite-latest",
+                latency_s=time.monotonic() - t0,
+                usage=_usage(body),
             )
             return text.strip()
         except Exception as e:
             _log_failure("read_image_text", e)
             llm_trace.log_generation(
-                "scam.ocr", "[image]", None, model="gemini-flash-lite-latest",
-                latency_s=time.monotonic() - t0, metadata={"error": True},
+                "scam.ocr",
+                "[image]",
+                None,
+                model="gemini-flash-lite-latest",
+                latency_s=time.monotonic() - t0,
+                metadata={"error": True},
             )
             return None
 
@@ -330,15 +378,23 @@ class LLMClient:
             body = resp.json()
             text = body["choices"][0]["message"]["content"]
             llm_trace.log_generation(
-                trace_label, prompt, text, model=f"azure:{cfg['chat']}",
-                latency_s=time.monotonic() - t0, usage=_azure_usage(body),
+                trace_label,
+                prompt,
+                text,
+                model=f"azure:{cfg['chat']}",
+                latency_s=time.monotonic() - t0,
+                usage=_azure_usage(body),
             )
             return text
         except Exception as e:
             _log_failure("azure_generate", e)
             llm_trace.log_generation(
-                trace_label, prompt, None, model=f"azure:{cfg['chat']}",
-                latency_s=time.monotonic() - t0, metadata={"error": True},
+                trace_label,
+                prompt,
+                None,
+                model=f"azure:{cfg['chat']}",
+                latency_s=time.monotonic() - t0,
+                metadata={"error": True},
             )
             return None
 

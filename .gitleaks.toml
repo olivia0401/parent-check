@@ -1,0 +1,9 @@
+title = "Parent-Check secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Ed25519 constructor type annotation and None default contain no key material"
+regexTarget = "line"
+regexes = ['''^\s*def __init__\(self, private_key: Ed25519PrivateKey \| None = None(, max_events: int = 1000)?\):\s*$''']

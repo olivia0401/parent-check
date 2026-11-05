@@ -49,12 +49,14 @@ export default function ResultCard({
         </ul>
       )}
 
-      {result.advice && (
+      {result.advice.length > 0 && (
         <div className="mt-5 rounded-xl bg-slate-50 p-4">
           <h3 className="text-sm font-semibold text-slate-500">
             {t.whatToDo}
           </h3>
-          <p className="mt-1 text-slate-800">{result.advice}</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-slate-800">
+            {result.advice.map((advice, index) => <li key={index}>{advice}</li>)}
+          </ul>
         </div>
       )}
 

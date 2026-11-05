@@ -1,0 +1,21 @@
+[Unit]
+Description=Parent-Check secret bootstrap and Compose stack
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/parent-check
+Environment=AWS_REGION=eu-west-2
+Environment=PARENTCHECK_SECRET_ARN=REPLACE_WITH_EXACT_SECRET_ARN
+Environment=AWS_EC2_METADATA_V1_DISABLED=true
+# Match --db-user/--db-name to .env and -p to the existing Compose project.
+# No ExecStop: systemctl restart must leave the old containers running during preparation.
+ExecStart=/opt/parent-check-ops/bin/python -m ops.deploy --secret-arn ${PARENTCHECK_SECRET_ARN} --region ${AWS_REGION} --db-user parentcheck --db-name parentcheck
+ExecReload=/opt/parent-check-ops/bin/python -m ops.deploy --secret-arn ${PARENTCHECK_SECRET_ARN} --region ${AWS_REGION} --db-user parentcheck --db-name parentcheck
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

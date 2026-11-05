@@ -3,6 +3,8 @@
 # environment. We build them here from the RDS/Redis outputs and hand them to
 # the task as `secrets` (valueFrom), so no plaintext credentials live in the
 # task definition or in CI.
+# IMPORTANT: secret_string and random_password values DO live in Terraform state.
+# This demo needs an encrypted, access-controlled state backend before real use.
 
 resource "random_password" "flask_secret" {
   length  = 48

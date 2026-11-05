@@ -22,6 +22,7 @@ from normalize import compact, to_halfwidth
 RISK_OK = "ok"
 RISK_CAUTION = "caution"
 RISK_DANGER = "danger"
+RISK_LEVELS = {RISK_OK: 0, RISK_CAUTION: 1, RISK_DANGER: 2}
 
 _CJK = re.compile(r"[一-鿿]")
 
@@ -68,12 +69,40 @@ def analyze_content(content, source=""):
     hit_scam = _find(SCAM, ctext, stext)
     hit_health = _find(HEALTH, ctext, stext)
 
+    # Merely carrying ID is not a request to disclose it. Every occurrence must
+    # be in that context, and an upload/photo/handover request cancels this rule.
+    identity_mentions = list(re.finditer("身份证", ctext))
+    if (
+        identity_mentions
+        and all(
+            re.search(r"(?:携带|带)(?:上|好)?$", ctext[: match.start()])
+            for match in identity_mentions
+        )
+        and not re.search(
+            r"发给|发送|发到|发来|上传|传给|传到|拍.{0,3}照|照片|提供|填写|输入|交给|交到|给我|出示|号码|卡号|验证码",
+            ctext,
+        )
+    ):
+        hit_critical = [term for term in hit_critical if term != "身份证"]
+
     # Deterministic threat-intelligence floor: suspicious links / numbers.
     bl_danger, bl_reasons = blocklist.check(content)
 
     # Semantic escalation layer: catches keyword-free scams (e.g. impersonation).
     # It can only ADD danger, never reduce it.
     sem_danger, sem_reasons = semantic.escalate(content)
+
+    # A complete protective instruction is different from a disclosure request.
+    # Match the whole message so appending a scam instruction cannot suppress
+    # its warnings; independent URL, scam and semantic signals always survive.
+    protective = re.fullmatch(
+        r"(?:记住|请记住|安全提醒|安全提示|提醒)?(?:请)?(?:不要|切勿|请勿|别|绝不)"
+        r"(?:把|将)?(?:银行)?(?:验证码|密码|银行卡号|身份证号)"
+        r"(?:发送给|发给|透露给|告诉|提供给|泄露给|交给)(?:任何人|别人|陌生人)",
+        ctext,
+    )
+    if protective and not (hit_scam or hit_health or bl_danger or sem_danger):
+        hit_critical = []
 
     danger = 3 * len(hit_critical) + 2 * len(hit_scam) + bl_danger + sem_danger
     caution = len(hit_health)
@@ -107,9 +136,7 @@ def analyze_content(content, source=""):
         category = "mixed"
 
     # Combine evidence from all layers, de-duplicated, order preserved.
-    reasons = list(
-        dict.fromkeys(hit_critical + hit_scam + hit_health + bl_reasons + sem_reasons)
-    )
+    reasons = list(dict.fromkeys(hit_critical + hit_scam + hit_health + bl_reasons + sem_reasons))
     return {"risk": risk, "category": category, "reasons": reasons}
 
 
@@ -138,7 +165,13 @@ def build_view(t, risk, category, reasons, source):
     can be rendered in whichever language the user is currently viewing.
     """
     # Translate any non-evidence reason codes (e.g. the model sentinel).
-    display = [t["reason_model"] if r == "model" else r for r in reasons]
+    display = [
+        t["reason_model"] if r == "model" else t["reason_ai"] if r == "ai_escalation" else r
+        for r in reasons
+    ]
+    # Repair legacy rows whose AI risk was stored without its matching category.
+    if risk != RISK_OK and category == "none":
+        category = "mixed"
     summary = t["summary"][category]
     advice = t["advice"][category]
     child_message = generate_child_message(t, risk, category, display, source)
@@ -147,4 +180,30 @@ def build_view(t, risk, category, reasons, source):
         "advice": advice,
         "child_message": child_message,
         "reasons": display,
+    }
+
+
+def merge_verdicts(*verdicts):
+    """Keep evidence from the submitted URL, every redirect and the body."""
+    risk = max((v["risk"] for v in verdicts), key=lambda value: RISK_LEVELS[value])
+    categories = {v["category"] for v in verdicts} - {"none"}
+    category = next(iter(categories)) if len(categories) == 1 else "mixed" if categories else "none"
+    return {
+        "risk": risk,
+        "category": category,
+        "reasons": list(dict.fromkeys(r for v in verdicts for r in v["reasons"])),
+    }
+
+
+def apply_ai_verdict(verdict, ai_result):
+    """Persist a language-neutral AI evidence code, never free-form user/AI text."""
+    if (
+        not ai_result
+        or RISK_LEVELS.get(ai_result.get("ai_risk"), -1) <= RISK_LEVELS[verdict["risk"]]
+    ):
+        return verdict
+    return {
+        "risk": ai_result["ai_risk"],
+        "category": "scam" if verdict["category"] == "scam" else "mixed",
+        "reasons": list(dict.fromkeys([*verdict["reasons"], "ai_escalation"])),
     }

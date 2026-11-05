@@ -1,10 +1,11 @@
 """Langfuse tracing for the Gemini calls — off unless LANGFUSE_* env vars are set.
 
-When it's on, each generate()/generate_with_tools() call is logged so I can see
-the AI second-opinion layer call by call (prompt, reply, tokens, latency). It's
+When it's on, calls record metadata, tokens and latency. Prompt/reply capture
+requires the separate explicit LANGFUSE_CAPTURE_CONTENT=1 opt-in. It's
 best-effort: anything failing here is swallowed, so a trace can't break a user's
 scam check. Setup lives in requirements-qe.txt / README.
 """
+
 import os
 
 _client = None
@@ -12,8 +13,7 @@ _resolved = False
 
 
 def enabled():
-    return bool(os.environ.get("LANGFUSE_PUBLIC_KEY")
-                and os.environ.get("LANGFUSE_SECRET_KEY"))
+    return bool(os.environ.get("LANGFUSE_PUBLIC_KEY") and os.environ.get("LANGFUSE_SECRET_KEY"))
 
 
 def _client_or_none():
@@ -27,6 +27,7 @@ def _client_or_none():
             import atexit
 
             from langfuse import get_client
+
             _client = get_client()
             atexit.register(flush)
         except Exception:
@@ -34,8 +35,7 @@ def _client_or_none():
     return _client
 
 
-def log_generation(name, prompt, output, *, model, latency_s=None,
-                   usage=None, metadata=None):
+def log_generation(name, prompt, output, *, model, latency_s=None, usage=None, metadata=None):
     # usage is {"input_tokens": int, "output_tokens": int} when Gemini reports it.
     client = _client_or_none()
     if client is None:
@@ -45,7 +45,11 @@ def log_generation(name, prompt, output, *, model, latency_s=None,
         meta = dict(metadata or {})
         if latency_s is not None:
             meta["latency_s"] = round(latency_s, 3)
-        kwargs = {"model": model, "input": prompt, "output": output, "metadata": meta}
+        kwargs = {"model": model, "metadata": meta}
+        # Provider tracing is metadata-only unless an operator explicitly opts
+        # into storing user-derived prompt/output content.
+        if os.environ.get("LANGFUSE_CAPTURE_CONTENT", "0") == "1":
+            kwargs.update(input=prompt, output=output)
         if usage:
             kwargs["usage_details"] = usage
         gen.update(**kwargs)

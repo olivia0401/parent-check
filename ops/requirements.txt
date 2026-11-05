@@ -1,0 +1,2 @@
+# Installed on the EC2 host only, never inside application containers.
+boto3>=1.35.0,<2

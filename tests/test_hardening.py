@@ -65,7 +65,7 @@ def test_short_helplines_are_detected():
     out = tools.execute_check_phone("Call 159 or 999 now", "en")
     types = {n["number"]: n["type"] for n in out["numbers"]}
     assert types == {"159": "UK official helpline", "999": "UK official helpline"}
-    out = tools.execute_check_phone("请拨打96110", "zh")
+    out = tools.execute_check_phone("请拨打96110", "zh", region="cn")
     assert out["numbers"][0]["number"] == "96110"
 
 

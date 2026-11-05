@@ -4,7 +4,7 @@ services:
     name: parent-check
     runtime: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: python -m pip install --upgrade "pip>=26.2" && python -m pip install -r requirements.txt
     # gunicorn is the production WSGI server; bind to the port Render provides.
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     envVars:
@@ -13,4 +13,7 @@ services:
       # Required: a PostgreSQL database with the pgvector extension available
       # (e.g. a Render Postgres instance). Entered in the dashboard, not in git.
       - key: DATABASE_URL
+        sync: false
+      # Required for production shared throttling; unavailable Redis returns 503.
+      - key: REDIS_URL
         sync: false

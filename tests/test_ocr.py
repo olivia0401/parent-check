@@ -4,6 +4,10 @@
 # nail down the decision logic that guards the image path (mime allow-list, size
 # cap, "no text found" floor, engine selection, length trim).
 
+from io import BytesIO
+
+from PIL import Image
+
 import ocr
 
 
@@ -20,7 +24,9 @@ class _FakeLLM:
         return self._text
 
 
-PNG = b"\x89PNG\r\n\x1a\n" + b"x" * 100  # plausible non-empty image payload
+_image = BytesIO()
+Image.new("RGB", (16, 16), "white").save(_image, format="PNG")
+PNG = _image.getvalue()
 
 
 def test_rejects_unsupported_mime():

@@ -1,109 +1,212 @@
-"""
-Downloads a web page (or WeChat article) the user pasted a link to, and
-pulls out the readable text so it can be run through the scam checker.
+"""Bounded article retrieval: validated IP pinning, TLS hostname checks and deadlines."""
 
-If anything goes wrong (bad url, timeout, blocked address, etc.) this
-returns {"ok": False, "error": "..."} instead of raising, so the route
-in app.py can just show a friendly message.
-"""
+import concurrent.futures
+import http.client
 import ipaddress
 import re
 import socket
-from urllib.parse import urljoin, urlparse
+import ssl
+import threading
+import time
+from urllib.parse import quote, urljoin, urlparse
 
-import requests
+from bs4 import BeautifulSoup
 
-try:
-    from bs4 import BeautifulSoup
-    HAS_BS4 = True
-except ImportError:
-    HAS_BS4 = False
-
+HAS_BS4 = True
 MAX_CHARS = 3000
-TIMEOUT = 10
+TIMEOUT = 12
+MAX_BYTES = 2 * 1024 * 1024
 MAX_REDIRECTS = 5
-
+_DNS_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="article-dns")
+_DNS_SLOTS = threading.BoundedSemaphore(4)
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "zh-CN,zh;q=0.9,en-GB,en;q=0.8",
+    "User-Agent": "ParentCheck/1.0",
+    "Accept": "text/html,text/plain,application/xhtml+xml",
+    "Accept-Encoding": "identity",
+    "Connection": "close",
 }
 
-# Don't fetch local/internal addresses - just block the common ones.
-BLOCKED_HOSTS = (
-    "localhost", "127.", "0.0.0.0", "::1",
-    "10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.",
-    "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.",
-    "172.26.", "172.27.", "172.28.", "172.29.", "172.30.", "172.31.",
-    "169.254.", "metadata.google.internal",
-)
+
+class UnsafeURL(ValueError):
+    pass
 
 
 def is_url(text):
-    """Check if the pasted text looks like a web link."""
     return bool(re.match(r"^https?://\S+", text.strip(), re.IGNORECASE))
 
 
-def _ip_is_internal(ip_str):
-    """True if an IP literal points somewhere we must never fetch."""
+def _ip_is_internal(value):
     try:
-        ip = ipaddress.ip_address(ip_str)
+        address = ipaddress.ip_address(value)
     except ValueError:
-        return False
-    # IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1) hides a v4 address - unwrap it.
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
-        ip = ip.ipv4_mapped
-    return (
-        ip.is_private or ip.is_loopback or ip.is_link_local
-        or ip.is_reserved or ip.is_multicast or ip.is_unspecified
-    )
+        return True
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+        address = address.ipv4_mapped
+    return not address.is_global or address.is_multicast
+
+
+def _remaining(deadline):
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError
+    return remaining
+
+
+def _resolve_target(url, deadline):
+    if len(url) > 5000 or any(ord(c) <= 32 or c == "\\" for c in url):
+        raise UnsafeURL
+    parsed = urlparse(url)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise UnsafeURL
+    host = (parsed.hostname or "").rstrip(".").encode("idna").decode().lower()
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    if not host or port not in {80, 443} or host == "localhost" or host.endswith(".localhost"):
+        raise UnsafeURL
+    if not _DNS_SLOTS.acquire(blocking=False):
+        raise TimeoutError
+    try:
+        future = _DNS_POOL.submit(socket.getaddrinfo, host, port, type=socket.SOCK_STREAM)
+    except Exception:
+        _DNS_SLOTS.release()
+        raise
+    future.add_done_callback(lambda _future: _DNS_SLOTS.release())
+    try:
+        addresses = future.result(timeout=_remaining(deadline))
+    except concurrent.futures.TimeoutError:
+        future.cancel()
+        raise TimeoutError from None
+    _remaining(deadline)
+    if not addresses or any(_ip_is_internal(info[4][0]) for info in addresses):
+        raise UnsafeURL
+    # The selected numeric address is used directly by the actual TCP socket.
+    return parsed, host, port, addresses[0][0], addresses[0][4][0]
 
 
 def is_safe_url(url):
-    """
-    Make sure the link isn't pointing at a local/internal address.
-
-    Two layers, because a cheap string check alone is bypassable:
-      1. Reject obviously-internal hostnames by prefix (fast, no network).
-      2. Actually resolve the host and reject if ANY resolved IP is internal.
-         This closes the hole where an attacker owns a public domain that
-         resolves to 127.0.0.1 / 10.x / 169.254.169.254 (cloud metadata) etc,
-         or hides the address as a decimal/hex/IPv4-mapped-IPv6 literal.
-    """
     try:
-        parsed = urlparse(url.strip())
-        if parsed.scheme not in ("http", "https"):
-            return False
-
-        host = (parsed.hostname or "").lower()
-        if not host:
-            return False
-
-        # Layer 1: cheap prefix blocklist (covers the common cases without DNS).
-        for blocked in BLOCKED_HOSTS:
-            if host == blocked.rstrip(".") or host.startswith(blocked):
-                return False
-
-        # Layer 2: if the host is already an IP literal, check it directly...
-        if _ip_is_internal(host):
-            return False
-
-        # ...otherwise resolve it and reject if any answer is internal.
-        try:
-            infos = socket.getaddrinfo(host, None)
-        except socket.gaierror:
-            return False  # can't resolve -> can't safely fetch
-        for info in infos:
-            if _ip_is_internal(info[4][0]):
-                return False
-
+        _resolve_target(url.strip(), time.monotonic() + TIMEOUT)
         return True
     except Exception:
         return False
+
+
+class _DeadlineHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, *args, deadline, **kwargs):
+        self._deadline = deadline
+        super().__init__(*args, **kwargs)
+
+    def connect(self):
+        http.client.HTTPConnection.connect(self)
+        self.sock.settimeout(_remaining(self._deadline))
+        self.sock = self._context.wrap_socket(self.sock, server_hostname=self.host)
+
+
+def _pinned_connection(target, deadline):
+    parsed, host, port, family, address = target
+    timeout = min(3, _remaining(deadline))
+    if parsed.scheme == "https":
+        conn = _DeadlineHTTPSConnection(
+            host, port, timeout=timeout, context=ssl.create_default_context(), deadline=deadline
+        )
+    else:
+        conn = http.client.HTTPConnection(host, port, timeout=timeout)
+
+    def connect_numeric(_address, timeout=timeout, source_address=None, **_kwargs):
+        sock = socket.socket(family, socket.SOCK_STREAM)
+        sock.settimeout(min(timeout, _remaining(deadline)))
+        try:
+            # No second DNS lookup. HTTPSConnection still verifies/SNIs `host`.
+            sock.connect((address, port))
+            return sock
+        except BaseException:
+            sock.close()
+            raise
+
+    conn._create_connection = connect_numeric
+    return conn
+
+
+def _fetch_hop(target, deadline):
+    parsed = target[0]
+    conn = _pinned_connection(target, deadline)
+    watchdog_socket = None
+    timer = None
+    expired = threading.Event()
+    try:
+        conn.connect()
+        conn.sock.settimeout(_remaining(deadline))
+        # Hold the socket even if HTTPConnection detaches it after headers.
+        # SSLSocket cannot be dup()'d; its makefile reader retains the live FD.
+        watchdog_socket = conn.sock
+
+        def expire():
+            expired.set()
+            try:
+                if isinstance(watchdog_socket, ssl.SSLSocket):
+                    # Bypass the TLS wrapper's closed-state check: a response
+                    # file may still own the FD after HTTPConnection.close().
+                    socket.socket.shutdown(watchdog_socket, socket.SHUT_RDWR)
+                else:
+                    watchdog_socket.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+        timer = threading.Timer(_remaining(deadline), expire)
+        timer.daemon = True
+        timer.start()
+        path = quote(parsed.path or "/", safe="/%:@!$&'()*+,;=-._~")
+        if parsed.query:
+            path += "?" + quote(parsed.query, safe="/%?:@!$&'()*+,;=-._~")
+        conn.request("GET", path, headers=HEADERS)
+        response = conn.getresponse()
+        location = response.getheader("Location")
+        if response.status in {301, 302, 303, 307, 308} and location:
+            _remaining(deadline)
+            return location, ""
+        if not 200 <= response.status < 300:
+            raise ValueError("http_status")
+        content_type = response.getheader("Content-Type", "").split(";", 1)[0].strip().lower()
+        if content_type not in {"text/html", "application/xhtml+xml", "text/plain"}:
+            raise ValueError("content_type")
+        # Refuse compressed responses even if the server ignores identity;
+        # compressed bombs never reach a decompressor in this path.
+        if response.getheader("Content-Encoding", "identity").lower() != "identity":
+            raise ValueError("content_encoding")
+        length = response.getheader("Content-Length")
+        if length is not None and (int(length) < 0 or int(length) > MAX_BYTES):
+            raise ValueError("body_size")
+        body = bytearray()
+        while True:
+            _remaining(deadline)
+            chunk = response.read1(min(8192, MAX_BYTES + 1 - len(body)))
+            _remaining(deadline)
+            if not chunk:
+                break
+            body.extend(chunk)
+            if len(body) > MAX_BYTES:
+                raise ValueError("body_size")
+        if length is not None and len(body) != int(length):
+            raise ValueError("incomplete_body")
+        charset = response.headers.get_content_charset() or "utf-8"
+        try:
+            html = body.decode(charset, errors="replace")
+        except LookupError:
+            html = body.decode("utf-8", errors="replace")
+        return None, html
+    except Exception:
+        if expired.is_set():
+            raise TimeoutError from None
+        raise
+    finally:
+        if timer is not None:
+            timer.cancel()
+        if watchdog_socket is not None:
+            watchdog_socket.close()
+        conn.close()
 
 
 def extract_text(html, url):
@@ -116,19 +219,27 @@ def extract_text(html, url):
     soup = BeautifulSoup(html, "html.parser")
 
     # Remove the bits of the page we don't care about
-    for tag in soup(["script", "style", "nav", "header", "footer",
-                     "aside", "iframe", "noscript", "figure"]):
+    for tag in soup(
+        ["script", "style", "nav", "header", "footer", "aside", "iframe", "noscript", "figure"]
+    ):
         tag.decompose()
 
     # WeChat articles keep their content in a div with id="js_content"
-    if "mp.weixin.qq.com" in url:
+    if urlparse(url).hostname == "mp.weixin.qq.com":
         block = soup.find(id="js_content")
         if block:
             return block.get_text(separator=" ", strip=True)[:MAX_CHARS]
 
     # For other pages, try a few common containers, then fall back to <body>
-    for selector in ("article", "main", "[role='main']", ".article-content",
-                     ".post-content", ".entry-content", "body"):
+    for selector in (
+        "article",
+        "main",
+        "[role='main']",
+        ".article-content",
+        ".post-content",
+        ".entry-content",
+        "body",
+    ):
         el = soup.select_one(selector)
         if el:
             text = el.get_text(separator=" ", strip=True)
@@ -139,55 +250,30 @@ def extract_text(html, url):
 
 
 def fetch_article(url):
-    """
-    Download the page at `url` and return its text.
-
-    Returns either:
-      {"ok": True, "text": "...", "title": "..."}
-      {"ok": False, "error": "unsafe_url" / "timeout" / "no_content" / "fetch_failed"}
-    """
-    url = url.strip()
-
-    if not is_safe_url(url):
-        return {"ok": False, "error": "unsafe_url"}
-
+    """Fetch bounded HTML and retain every URL as deterministic risk evidence."""
+    deadline = time.monotonic() + TIMEOUT
+    urls = []
     try:
-        # SSRF defence: checking only the URL the user pasted isn't enough — an
-        # allowed external page can 3xx-redirect onto an internal address
-        # (loopback, private range, cloud metadata). So we follow redirects
-        # *manually* and re-validate each hop BEFORE requesting it, meaning the
-        # internal address is never actually fetched, not just hidden from output.
-        resp = None
+        url = url.strip()
         for _ in range(MAX_REDIRECTS + 1):
-            if not is_safe_url(url):
-                return {"ok": False, "error": "unsafe_url"}
-            resp = requests.get(
-                url, headers=HEADERS, timeout=TIMEOUT, allow_redirects=False
-            )
-            if resp.is_redirect and resp.headers.get("location"):
-                url = urljoin(url, resp.headers["location"])
+            target = _resolve_target(url, deadline)
+            urls.append(url)
+            location, html = _fetch_hop(target, deadline)
+            if location is not None:
+                url = urljoin(url, location)
                 continue
-            break
-        else:
-            return {"ok": False, "error": "fetch_failed"}  # too many redirects
-
-        resp.raise_for_status()
-        resp.encoding = resp.apparent_encoding or "utf-8"
-
-        text = extract_text(resp.text, url)
-        if len(text) < 50:
-            return {"ok": False, "error": "no_content"}
-
-        title = ""
-        if HAS_BS4:
-            soup = BeautifulSoup(resp.text, "html.parser")
-            title_tag = soup.find("title")
-            if title_tag:
-                title = title_tag.get_text(strip=True)[:120]
-
-        return {"ok": True, "text": text, "title": title}
-
-    except requests.Timeout:
+            text = extract_text(html, url)
+            _remaining(deadline)
+            if len(text) < 50:
+                return {"ok": False, "error": "no_content"}
+            soup = BeautifulSoup(html, "html.parser")
+            title = soup.title.get_text(strip=True)[:120] if soup.title else ""
+            _remaining(deadline)
+            return {"ok": True, "text": text, "title": title, "urls": urls}
+        return {"ok": False, "error": "fetch_failed"}
+    except UnsafeURL:
+        return {"ok": False, "error": "unsafe_url"}
+    except TimeoutError:
         return {"ok": False, "error": "timeout"}
     except Exception:
         return {"ok": False, "error": "fetch_failed"}

@@ -17,6 +17,10 @@
     </section>
   {% endif %}
 
+  {% if has_ai_evidence %}
+    <p class="lead">{{ t.history_ai_notice }}</p>
+  {% endif %}
+
   {% if advice %}
     <section>
       <h2>{{ t.advice_heading }}</h2>

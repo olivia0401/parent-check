@@ -8,8 +8,20 @@ Tools the AI is allowed to call while it analyses a message.
 Gemini decides for itself whether and when to call these - we just
 describe them below and run whatever it asks for.
 """
+
 import concurrent.futures
+import logging
 import re
+from threading import BoundedSemaphore
+
+from regions import current_region_code
+
+logger = logging.getLogger(__name__)
+MAX_TOOL_CALLS = 8
+_TOOL_POOL = concurrent.futures.ThreadPoolExecutor(
+    max_workers=4, thread_name_prefix="analysis-tool"
+)
+_TOOL_SLOTS = BoundedSemaphore(8)
 
 # Deadline for one batch of parallel tool calls (seconds).
 TOOL_TIMEOUT_S = 8
@@ -79,30 +91,37 @@ def execute_query_rag(text, rag, lang, category=None):
         if lang == "zh":
             lines.append(f"{i}. 类型：{c['category']} | 示例：{preview} | 分析：{c['analysis']}")
         else:
-            lines.append(f"{i}. Type: {c['category']} | Example: {preview} | Analysis: {c['analysis']}")
+            lines.append(
+                f"{i}. Type: {c['category']} | Example: {preview} | Analysis: {c['analysis']}"
+            )
 
-    header = "知识库中找到以下类似骗局案例：" if lang == "zh" else "Similar scam cases found in knowledge base:"
+    header = (
+        "知识库中找到以下类似骗局案例："
+        if lang == "zh"
+        else "Similar scam cases found in knowledge base:"
+    )
     return {"found": True, "cases": len(cases), "summary": header + "\n" + "\n".join(lines)}
 
 
 # Standalone short official numbers, per region (not part of a longer number).
 _HELPLINE_RE = {
-    "en": r'(?<![\d+])(999|101|111|159)(?!\d)',
-    "zh": r'(?<![\d+])(110|120|119|96110|12110)(?!\d)',
+    "uk": r"(?<![\d+])(999|101|111|159)(?!\d)",
+    "cn": r"(?<![\d+])(110|120|119|96110|12110)(?!\d)",
 }
 
 
-def execute_check_phone(text, lang):
+def execute_check_phone(text, lang, region=None):
     """Find phone numbers in the text and label what type each one looks like."""
-    raw_matches = re.findall(r'(?<!\d)(\+?[\d][\d\s\-\(\)]{5,18}\d)(?!\d)', text)
+    region = region or current_region_code()
+    raw_matches = re.findall(r"(?<!\d)(\+?[\d][\d\s\-\(\)]{5,18}\d)(?!\d)", text)
     # Short official helplines (999 / 159 / 110 / 96110 ...) are too short for the
     # general pattern above, so pick them up explicitly as standalone numbers.
-    raw_matches += re.findall(_HELPLINE_RE[lang if lang == "zh" else "en"], text)
+    raw_matches += re.findall(_HELPLINE_RE[region], text)
 
     # clean up spaces/dashes/brackets and drop duplicates
     phones = []
     for match in raw_matches:
-        cleaned = re.sub(r'[\s\-\(\)]', '', match)
+        cleaned = re.sub(r"[\s\-\(\)]", "", match)
         if cleaned not in phones:
             phones.append(cleaned)
 
@@ -110,7 +129,7 @@ def execute_check_phone(text, lang):
         msg = "消息中未发现电话号码。" if lang == "zh" else "No phone numbers found in the message."
         return {"found": False, "summary": msg}
 
-    classified = [{"number": p, "type": classify_phone(p, lang)} for p in phones]
+    classified = [{"number": p, "type": classify_phone(p, lang, region)} for p in phones]
 
     if lang == "zh":
         lines = ["发现以下电话号码："]
@@ -124,76 +143,93 @@ def execute_check_phone(text, lang):
     return {"found": True, "numbers": classified, "summary": "\n".join(lines)}
 
 
-def classify_phone(phone, lang):
-    """Guess what kind of number this is, based on a few simple patterns."""
-    if lang == "zh":
-        if phone.startswith('+') and not phone.startswith('+86'):
-            return "境外号码（非中国大陆）"
-        if re.match(r'^400', phone):
-            return "400客服号（可被仿冒）"
-        if re.match(r'^\+?86?1[3-9]\d{9}$', phone):
-            return "中国大陆手机号"
-        if re.match(r'^(110|120|119|96110|12110)$', phone):
-            return "官方热线号码"
-        if re.match(r'^\+?86', phone):
-            return "中国大陆号码"
-        if len(phone) <= 6:
-            return "短号码（可能是官方热线）"
-        return "未知类型号码"
+def classify_phone(phone, lang, region=None):
+    """Region selects numbering rules; language only selects the wording."""
+    region = region or current_region_code()
+    zh = lang == "zh"
+
+    def label(chinese, english):
+        return chinese if zh else english
+
+    prefix = "+86" if region == "cn" else "+44"
+    if phone.startswith("+") and not phone.startswith(prefix):
+        return label(
+            "境外号码（非中国大陆）" if region == "cn" else "境外号码（非英国）",
+            "international number (not China)"
+            if region == "cn"
+            else "international number (not UK)",
+        )
+    if region == "cn":
+        if re.fullmatch(r"(?:110|120|119|96110|12110)", phone):
+            return label("官方热线号码", "China official helpline")
+        if re.fullmatch(r"(?:\+?86)?1[3-9]\d{9}", phone):
+            return label("中国大陆手机号", "China mobile")
+        if phone.startswith("400"):
+            return label("400客服号（可被仿冒）", "China service number (can be spoofed)")
+        if phone.startswith(("+86", "86")):
+            return label("中国大陆号码", "China number")
     else:
-        if re.match(r'^09\d{2}', phone):
-            return "premium rate number"
-        if phone.startswith('+') and not phone.startswith('+44'):
-            return "international number (not UK)"
-        if re.match(r'^0800|^\+44800', phone):
-            return "UK freephone"
-        if re.match(r'^07|^\+447', phone):
-            return "UK mobile"
-        if re.match(r'^01|^02', phone):
-            return "UK landline"
-        if re.match(r'^(999|101|111|159)$', phone):
-            return "UK official helpline"
-        return "unknown number type"
+        if phone in {"999", "101", "111", "159"}:
+            return label("英国官方热线号码", "UK official helpline")
+        if re.match(r"^09\d{2}", phone):
+            return label("英国高收费号码", "premium rate number")
+        if phone.startswith(("0800", "+44800")):
+            return label("英国免费电话", "UK freephone")
+        if phone.startswith(("07", "+447")):
+            return label("英国手机号", "UK mobile")
+        if phone.startswith(("01", "02")):
+            return label("英国固定电话", "UK landline")
+    return label("未知类型号码", "unknown number type")
 
 
 def run_tools_parallel(calls, rag, lang, original_text):
-    """
-    Run all the tool calls Gemini asked for at the same time (instead of
-    one after another), so the whole check doesn't take too long.
-    Returns a list of {"name": ..., "response": ...} dicts.
-    """
-    def run_one(call):
-        name = call["name"]
-        args = call.get("args", {})
-        text = args.get("text", original_text)
-        try:
-            if name == "query_knowledge_base":
-                result = execute_query_rag(text, rag, lang, args.get("category"))
-            elif name == "check_phone_numbers":
-                result = execute_check_phone(text, lang)
-            else:
-                result = {"error": f"Unknown tool: {name}"}
-        except Exception as e:
-            result = {"error": str(e)}
-        return {"name": name, "response": result}
+    """Bounded shared workers; exactly one ordered response per invocation."""
 
-    results = []
-    pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
-    futures = [pool.submit(run_one, c) for c in calls]
-    try:
-        for f in concurrent.futures.as_completed(futures, timeout=TOOL_TIMEOUT_S):
-            try:
-                results.append(f.result())
-            except Exception:
-                pass
-    except concurrent.futures.TimeoutError:
-        # Hard deadline: return whatever finished; a slow tool is reported to the
-        # model as timed out instead of failing the whole AI step.
-        done = {r["name"] for r in results}
-        for c in calls:
-            if c["name"] not in done:
-                results.append({"name": c["name"], "response": {"error": "timeout"}})
-    finally:
-        # Don't block the request on stragglers; they finish in the background.
-        pool.shutdown(wait=False, cancel_futures=True)
-    return results
+    def run_one(call):
+        try:
+            args = call.get("args", {})
+            if not isinstance(args, dict):
+                return {"error": "invalid_tool_arguments"}
+            text = args.get("text", original_text)
+            category = args.get("category")
+            if (
+                not isinstance(text, str)
+                or len(text) > 5000
+                or (category is not None and (not isinstance(category, str) or len(category) > 64))
+            ):
+                return {"error": "invalid_tool_arguments"}
+            if call["name"] == "query_knowledge_base":
+                return execute_query_rag(text, rag, lang, category)
+            if call["name"] == "check_phone_numbers":
+                return execute_check_phone(text, lang)
+            return {"error": "tool_not_allowed"}
+        except Exception as exc:
+            logger.warning("Tool failed: %s", type(exc).__name__)
+            return {"error": "tool_failed"}
+
+    pending = {}
+    responses = [None] * len(calls)
+    for index, call in enumerate(calls):
+        name = call.get("name", "unknown") if isinstance(call, dict) else "unknown"
+        responses[index] = {"name": name, "response": {"error": "tool_busy"}}
+        if isinstance(call, dict) and isinstance(call.get("id"), str):
+            responses[index]["id"] = call["id"]
+        if index >= MAX_TOOL_CALLS or not _TOOL_SLOTS.acquire(blocking=False):
+            continue
+        try:
+            future = _TOOL_POOL.submit(run_one, call)
+        except Exception:
+            _TOOL_SLOTS.release()
+            raise
+        future.add_done_callback(lambda _future: _TOOL_SLOTS.release())
+        pending[future] = index
+    done, unfinished = concurrent.futures.wait(pending, timeout=TOOL_TIMEOUT_S)
+    for future in done:
+        try:
+            responses[pending[future]]["response"] = future.result()
+        except Exception:
+            responses[pending[future]]["response"] = {"error": "tool_failed"}
+    for future in unfinished:
+        future.cancel()
+        responses[pending[future]]["response"] = {"error": "timeout"}
+    return responses

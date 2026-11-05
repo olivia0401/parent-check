@@ -99,4 +99,33 @@ def test_history_is_isolated_per_browser():
         data={"content": "转账验证码", "source": "suspicious_msg", "csrf_token": "tok"},
     )
     # b is a different browser/session → must not see a's record
-    assert b.get("/history/1").status_code in (301, 302)
+    assert b.get("/history/1").status_code == 404
+
+
+@pytest.mark.parametrize("lang", ["zh", "en"])
+@pytest.mark.parametrize("text", ["转账验证码", "月季花叶子发黄怎么办？"])
+def test_owner_can_open_saved_history_and_submit_feedback(client, lang, text):
+    # Use the real ORM record: an anonymous visitor's redirect would miss the bug.
+    import repo
+
+    client.get(f"/history?lang={lang}")
+    with client.session_transaction() as session:
+        token = session["uid"]
+        session["csrf"] = "history-test-token"
+    verdict = analyze_content(text, "other")
+    check_id = repo.create_check(
+        "other", verdict["risk"], verdict["category"], verdict["reasons"], token
+    )
+    response = client.get(f"/history/{check_id}")
+    assert response.status_code == 200
+    assert f"/feedback/{check_id}".encode() in response.data
+
+    outsider = app_module.app.test_client()
+    assert outsider.get(f"/history/{check_id}").status_code == 404
+    response = client.post(
+        f"/feedback/{check_id}",
+        data={"helpful": "yes", "csrf_token": "history-test-token"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert repo.get_check(check_id, token).helpful == 1

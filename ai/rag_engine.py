@@ -170,8 +170,8 @@ class ScamRAGEngine:
         if not candidates:
             if rows:
                 log.debug(
-                    "RAG: %d candidate(s) all below min_similarity=%.2f for %r",
-                    len(rows), min_similarity, text[:40],
+                    "RAG: %d candidate(s) all below min_similarity=%.2f",
+                    len(rows), min_similarity,
                 )
             return []
 

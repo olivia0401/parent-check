@@ -2,24 +2,29 @@
 # docker compose + Caddy auto-HTTPS. Real Postgres/
 # pgvector + Redis run alongside the app — not a degraded demo.
 #
-#   1. copy .env.prod.example -> .env  and fill it in
-#   2. docker compose -f docker-compose.prod.yml up -d --build
+#   1. follow DEPLOY.md to export Secrets Manager values on the host
+#   2. copy .env.prod.example -> .env (non-secret settings only)
+#   3. docker compose -f docker-compose.prod.yml up -d --build
 #
 # Unlike the dev docker-compose.yml, this does NOT publish the db/redis ports to
 # the host (only Caddy is public, on 80/443), sets restart policies, and reads
-# every secret from .env.
+# secrets from read-only files under /run, never from Compose environment values.
 services:
   db:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:-parentcheck}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: ${POSTGRES_DB:-parentcheck}
+    secrets:
+      - postgres_password
+    networks:
+      - data
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-parentcheck}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -27,6 +32,8 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    networks:
+      - data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -35,18 +42,37 @@ services:
 
   web:
     build: .
+    image: ${WEB_IMAGE:-parent-check-web:local}
     restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      start_period: 20s
+      retries: 12
+    networks:
+      - edge
+      - data
     expose:
       - "8000"          # internal only; Caddy reaches it as web:8000
     environment:
-      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      DATABASE_URL_FILE: /run/secrets/database_url
       REDIS_URL: redis://redis:6379/0
-      # APP_ENV=production makes the app refuse to start without SECRET_KEY and
-      # marks session cookies Secure (HTTPS-only; Caddy terminates TLS).
-      APP_ENV: ${APP_ENV:-production}
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in .env}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      SITE_URL: "https://${SITE_ADDRESS}"   # for absolute og:/twitter: share links; reuses SITE_ADDRESS
+      APP_ENV: production
+      SECRET_KEY_FILE: /run/secrets/secret_key
+      GEMINI_API_KEY_FILE: /run/secrets/gemini_api_key
+      AWS_EC2_METADATA_DISABLED: "true"
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
+      SITE_URL: "https://${SITE_ADDRESS:?SITE_ADDRESS must be set}"
+    secrets:
+      - database_url
+      - secret_key
+      - gemini_api_key
     depends_on:
       db:
         condition: service_healthy
@@ -56,6 +82,8 @@ services:
   caddy:
     image: caddy:2
     restart: unless-stopped
+    networks:
+      - edge
     ports:
       - "80:80"
       - "443:443"
@@ -66,9 +94,25 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - web
+      web:
+        condition: service_healthy
 
 volumes:
   pgdata:
   caddy_data:
   caddy_config:
+
+networks:
+  edge:
+  data:
+    internal: true
+
+secrets:
+  postgres_password:
+    file: ${SECRETS_DIRECTORY:-/run/parent-check/current}/postgres_password
+  database_url:
+    file: ${SECRETS_DIRECTORY:-/run/parent-check/current}/database_url
+  secret_key:
+    file: ${SECRETS_DIRECTORY:-/run/parent-check/current}/secret_key
+  gemini_api_key:
+    file: ${SECRETS_DIRECTORY:-/run/parent-check/current}/gemini_api_key
