@@ -1,5 +1,9 @@
 # Security engineering status
 
+## Live EC2 deployment update (2026-11-05)
+
+Production deployment and acceptance are complete. AWS console evidence confirms the EC2 instance is running with 3/3 instance checks passed and the `parent-check-ec2` IAM role attached. CloudTrail records successful `GetSecretValue` calls by an assumed session of that role (2026-11-02; no `errorCode`). At verification, the Caddy, web, database and Redis containers were running; web, database and Redis health checks were healthy. The 2026-10-30 security-group observation below is historical and SSH ingress has not been rechecked in this update.
+
 This is an anonymous public scam checker. Analysis endpoints intentionally accept
 public requests; CORS is a browser policy, not authentication. Saved HTML history
 is scoped by an unguessable ID in a signed session cookie, and every repository
@@ -23,17 +27,17 @@ Read-only AWS/GitHub checks were performed; no cloud configuration was changed.
 | SSM instance status | Not verified: current AWS caller lacks DescribeInstanceInformation |
 | Secrets Manager inventory | Not verified: current caller lacks ListSecrets; no secret values were requested |
 
-**Priority operational gap:** restrict public SSH immediately through an approved
-change; establish and test SSM before removing the last management route. The
-proposed IAM profile, secret migration, hop limit/firewall changes and container
-recreation still require deployment and live acceptance checks. Do not claim
-Secrets Manager is already protecting this EC2 deployment.
+**Historical action from the 2026-10-30 snapshot:** restrict public SSH through an
+approved change and establish SSM before removing the last management route. The
+EC2 role and Secrets Manager migration have since been deployed and successful
+secret retrieval verified. SSH ingress, hop limit and firewall state were not
+rechecked in the latest evidence; verify the current security group and host config.
 
 ## Changes prepared in this checkout
 
 The reviewed code defects R1–R19 have now been addressed locally; see
 [BUGFIXES.md](BUGFIXES.md) for the implementation and validation matrix.
-Cloud migration and live production acceptance remain separate.
+The EC2 Secrets Manager migration and live secret retrieval are now confirmed; remaining security scope is listed below.
 
 - Host-only Secrets Manager exporter using temporary EC2 role credentials and
   one exact-secret GetSecretValue policy; no AWS keys given to application
